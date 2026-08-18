@@ -185,4 +185,18 @@ final class User {
     var hasExhaustedTodaysShuffles: Bool {
         todaysPrompts.count <= 1
     }
+
+    #if DEBUG
+    /// TESTING ONLY — compiled out of Release builds entirely. Rewinds
+    /// all of today's daily-cycle state (the write lock, today's prompt
+    /// set, discovery usage) so the app behaves as if a new calendar day
+    /// had started, without waiting for midnight. Lets `TestingProfileView`
+    /// cycle through fresh prompt generations repeatedly while testing.
+    func debugRefreshDay() {
+        lastWriteDate = nil
+        dailyPromptsData = nil
+        dailyPromptsDate = nil
+        lastDiscoveryUseDate = nil
+    }
+    #endif
 }

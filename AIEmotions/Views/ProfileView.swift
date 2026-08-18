@@ -85,9 +85,7 @@ struct ProfileView: View {
                     }
                     .padding(.horizontal, 32)
 
-                    if !user.emotionProfile.isEmpty {
-                        emotionBreakdown
-                    }
+                    StyleSummaryCard(user: user)
 
                     modeToggle
 
@@ -157,45 +155,6 @@ struct ProfileView: View {
                         .overlay(Capsule().stroke(Theme.ink, lineWidth: 1.5))
                 )
         }
-    }
-
-    private var emotionBreakdown: some View {
-        let total = max(user.emotionProfile.values.reduce(0, +), 1)
-        let sorted = user.emotionProfile.sorted { $0.value > $1.value }
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Your emotional palette")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(Theme.ink)
-
-            ForEach(sorted, id: \.key) { emotion, count in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(emotion.capitalized)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.ink)
-                        Spacer()
-                        Text("\(count)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.inkMuted)
-                    }
-                    GeometryReader { geo in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Theme.accent.opacity(0.25))
-                            .overlay(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Theme.accent)
-                                    .frame(width: geo.size.width * CGFloat(count) / CGFloat(total))
-                            }
-                    }
-                    .frame(height: 8)
-                }
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.ink, lineWidth: 2))
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

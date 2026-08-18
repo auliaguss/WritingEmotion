@@ -18,7 +18,8 @@ import SwiftData
 struct HomeView: View {
     @Bindable var user: User
     @State private var showWriting = false
-
+    @State private var animateCaption = false
+    
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
@@ -32,7 +33,8 @@ struct HomeView: View {
                             caption: user.hasWrittenToday
                                 ? "Come back tomorrow to write something new!"
                                 : "Start writing and see where it takes you!",
-                            disabled: user.hasWrittenToday
+                            disabled: user.hasWrittenToday,
+                            animateCaption: animateCaption // Pass the state here!
                         ) {
                             showWriting = true
                         }
@@ -42,6 +44,13 @@ struct HomeView: View {
                                 .frame(height: 68)
                                 .padding(.trailing, 6)
                                 .padding(.bottom, 34)
+                                
+                            // The Invisible Tap Catcher!
+                            Color.black.opacity(0.001)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    animateCaption.toggle() // Flips the state to trigger the spring
+                                }
                         }
                     }
 
@@ -60,6 +69,19 @@ struct HomeView: View {
                 .animation(.easeInOut, value: user.hasWrittenToday)
 
                 HStack {
+                    #if DEBUG
+                    NavigationLink {
+                        TestingProfileView(user: user)
+                    } label: {
+                        Image(systemName: "ladybug.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                            .frame(width: 42, height: 42)
+                            .background(Circle().fill(Theme.card))
+                            .overlay(Circle().stroke(Theme.ink, lineWidth: 2.5))
+                    }
+                    #endif
+
                     Spacer()
                     NavigationLink {
                         ProfileView(user: user)
@@ -91,6 +113,7 @@ struct HomeView: View {
         icon: String,
         caption: String,
         disabled: Bool = false,
+        animateCaption: Bool = false, // 1. Add this parameter
         action: @escaping () -> Void
     ) -> some View {
         VStack(alignment: .center, spacing: 8) {
@@ -115,6 +138,10 @@ struct HomeView: View {
                 .foregroundStyle(Theme.inkMuted)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
+                // 2. Add your custom animation modifiers right here!
+                .scaleEffect(animateCaption ? 1.2 : 1)
+                .shadow(color: .black.opacity(0.5), radius: animateCaption ? 10 : 0)
+                .animation(.spring(response: 0.5, dampingFraction: 0.3), value: animateCaption)
         }
     }
 }
