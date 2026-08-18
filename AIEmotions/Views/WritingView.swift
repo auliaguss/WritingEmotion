@@ -35,6 +35,7 @@ struct WritingView: View {
 
     @State private var draftText: String = ""
     @State private var showConfirm = false
+    @State private var showMinimumLengthError = false
 
     @State private var showScanner = false
     @State private var isRecognizingText = false
@@ -230,7 +231,7 @@ struct WritingView: View {
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 5).fill(Theme.tipFill))
 
-            if !meetsMinimumLength {
+            if showMinimumLengthError && !meetsMinimumLength {
                 Text("Keep writing! You haven't reached the minimum yet.")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.error)
@@ -240,7 +241,11 @@ struct WritingView: View {
 
     private var doneButton: some View {
         Button {
-            showConfirm = true
+            if meetsMinimumLength {
+                showConfirm = true
+            } else {
+                showMinimumLengthError = true
+            }
         } label: {
             Text("Done")
                 .font(.system(size: 16, weight: .bold))
@@ -249,7 +254,6 @@ struct WritingView: View {
                 .padding(.vertical, 16)
         }
         .hardCard()
-        .disabled(!meetsMinimumLength)
     }
 
     private func confirmOverlay(prompt: PromptData) -> some View {
