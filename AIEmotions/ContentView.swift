@@ -5,7 +5,7 @@
 //  Ensures there's a single local User (created on first launch), then
 //  hands off to HomeView — the actual root screen (Write / Read /
 //  Profile). No TabView: Drafts and Published now live only inside
-//  Profile.
+//  Profile. Shows a brief branded splash on launch.
 //
 
 import SwiftUI
@@ -14,6 +14,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var users: [User]
+    @State private var showSplash = true
 
     var body: some View {
         Group {
@@ -22,6 +23,18 @@ struct ContentView: View {
             } else {
                 ProgressView()
                     .task { bootstrapUser() }
+            }
+        }
+        .overlay {
+            if showSplash {
+                SplashView()
+                    .transition(.opacity)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(.easeInOut(duration: 0.4)) {
+                showSplash = false
             }
         }
     }

@@ -8,6 +8,9 @@
 //  disabled, the tagline changes, and "Read" is revealed underneath.
 //  Profile lives behind the top-right icon, classic-app style.
 //
+//  Visual styling (Theme + hardCard) ported from the "Writing" branch's
+//  design; navigation/gating logic stays SwiftData-driven.
+//
 
 import SwiftUI
 import SwiftData
@@ -18,70 +21,100 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
-                Spacer()
+            ZStack(alignment: .top) {
+                Theme.background.ignoresSafeArea()
 
-                ZStack {
-                    Button {
-                        showWriting = true
-                    } label: {
-                        Label("Write", systemImage: "pencil")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
+                VStack(alignment: .leading, spacing: 20) {
+                    ZStack(alignment: .leading) {
+                        actionButton(
+                            title: "Write",
+                            icon: "pencil",
+                            caption: user.hasWrittenToday
+                                ? "Come back tomorrow to write something new!"
+                                : "Start writing and see where it takes you!",
+                            disabled: user.hasWrittenToday
+                        ) {
+                            showWriting = true
+                        }
+
+                        if user.hasWrittenToday {
+                            ScribbleOverlay()
+                                .frame(height: 68)
+                                .padding(.trailing, 6)
+                                .padding(.bottom, 34)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(user.hasWrittenToday)
 
                     if user.hasWrittenToday {
-                        ScribbleOverlay()
+                        actionButton(
+                            title: "Read",
+                            icon: "book.fill",
+                            caption: "Discover a piece written by someone else!"
+                        ) {
+                            readDestinationTrigger = true
+                        }
                     }
                 }
-                .padding(.horizontal, 40)
+                .padding(.horizontal, 24)
+                .padding(.top, 90)
+                .animation(.easeInOut, value: user.hasWrittenToday)
 
-                Text(user.hasWrittenToday
-                     ? "Come back tomorrow to write something new!"
-                     : "Start writing and see where it takes you!")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-
-                if user.hasWrittenToday {
-                    NavigationLink {
-                        ReadView(user: user)
-                    } label: {
-                        Label("Read", systemImage: "book")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.bordered)
-                    .padding(.horizontal, 40)
-                    .padding(.top, 10)
-
-                    Text("Discover a piece written by someone else!")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-                Spacer()
-            }
-            .animation(.easeInOut, value: user.hasWrittenToday)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                HStack {
+                    Spacer()
                     NavigationLink {
                         ProfileView(user: user)
                     } label: {
-                        Image(systemName: "person.crop.circle")
-                            .font(.title2)
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                            .frame(width: 42, height: 42)
+                            .background(Circle().fill(Theme.card))
+                            .overlay(Circle().stroke(Theme.ink, lineWidth: 2.5))
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+            }
+            .navigationDestination(isPresented: $readDestinationTrigger) {
+                ReadView(user: user)
             }
             .fullScreenCover(isPresented: $showWriting) {
                 WritingView(user: user)
             }
+        }
+    }
+
+    @State private var readDestinationTrigger = false
+
+    private func actionButton(
+        title: String,
+        icon: String,
+        caption: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .center, spacing: 8) {
+            Button(action: action) {
+                HStack(spacing: 10) {
+                    Image(systemName: icon)
+                    Text(title)
+                        .fontWeight(.bold)
+                }
+                .font(.system(size: 20))
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 22)
+            }
+            .hardCard()
+            .padding(.trailing, 6)
+            .padding(.bottom, 6)
+            .disabled(disabled)
+
+            Text(caption)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.inkMuted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
     }
 }

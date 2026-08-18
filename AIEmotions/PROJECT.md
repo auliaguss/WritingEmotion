@@ -12,10 +12,11 @@
 ## 🛠️ The Tech Setup
 | Component | What we are using | Simple Explanation |
 | :--- | :--- | :--- |
-| **User Interface** | SwiftUI, single-screen home (no tab bar) | `HomeView` shows Write (and, once today's writing is done, Read), with Profile behind a top-right icon — see navigation section below. |
+| **User Interface** | SwiftUI, single-screen home (no tab bar) | `HomeView` shows Write (and, once today's writing is done, Read), with Profile behind a top-right icon — see navigation section below. Visual design (`Support/Theme.swift` fixed warm palette + `Support/HardCard.swift` hand-drawn "hard shadow" card look) ported from the `main`/"Writing" branch and applied across Home/Writing/Profile/Read/PostList so the whole app shares one look. |
 | **The Brains** | `FoundationModels` (`LanguageModelSession`, `@Generable`/`@Guide`) | Generates 3 prompts a day, each a short phrase + emotion tags, fully on-device. Falls back to a small curated prompt bank if the model is unavailable. |
 | **Local Memory** | SwiftData (`User`, `Post`) | `User` is the single local profile; `Post` covers both drafts and published entries via an `isPublished` flag. |
 | **Persistence for identity** | `identifierForVendor` + Keychain (`DeviceIdentity`) | Keychain survives reinstalls, so `deviceID` stays stable. |
+| **Camera** | VisionKit document scanner + Vision OCR (`Views/DocumentScannerView.swift`, `Support/TextRecognizer.swift`), also ported from `main` | Tapping "Camera" in `WritingView` scans a physical page and transcribes it straight into the draft text — this **replaces** the earlier `PhotosPicker` photo-attach button (same label, different feature; `Post.attachedImageData` stays in the model but nothing sets it anymore). |
 
 ## 🧭 Navigation (no more tab bar)
 - **`HomeView`** is the app root. Top-right toolbar icon → `ProfileView`. Center: a **Write** button, always present.
@@ -53,7 +54,7 @@
 | :--- | :--- | :--- | :--- |
 | **1** | **The Skeleton** | SwiftUI shell, models (`User`, `Post`, `PromptData`), `DeviceIdentity`. | ✅ Done |
 | **2** | **The AI Hookup** | `PromptManager` wired to `FoundationModels` with `@Generable` schema (`GeneratedPrompt` / `GeneratedPromptBatch`), plus an offline fallback bank. | ✅ Done |
-| **3** | **The Writing Flow** | `WritingView`: text editor, optional photo attach (`PhotosPicker`), save-draft/publish. | ✅ Done |
+| **3** | **The Writing Flow** | `WritingView`: text editor, save-draft/publish. Originally had optional photo attach (`PhotosPicker`) — replaced in Step 17 by document-scan OCR. | ✅ Done |
 | **4** | **The Save State** | SwiftData persistence for `User`/`Post`; `PostListView` for both Drafts and Published. | ✅ Done |
 | **5** | **The Feedback Loop** | Emotion-weight updates on save/publish; Profile tab emotion breakdown bars; bias prompt generation off top emotions. | ✅ Done |
 | **6** | **Daily prompt lifecycle** | Exactly 3 prompts/day, persisted on `User`; shuffle = permanent delete (no replacement), floor of 1 that can't be discarded; refreshes next calendar day. | ✅ Done this pass |
@@ -67,6 +68,7 @@
 | **14** | **Discovery priority + gating rework** | Discovery generation now strictly prioritizes a never-scored emotion over the lowest-scored one (was previously a soft either/or), and the button is now gated on `hasExhaustedTodaysShuffles` (only 1 prompt left) rather than being available any time post-unlock. | ✅ Done this pass |
 | **15** | **Writing screen redesign** | Rebuilt `WritingView` to match the mockup: prompt title + shuffle link w/ `(n/3)` counter, in-box "Camera" attach button, tip banner + red under-minimum nudge, "Done" → save/publish confirmation overlay. | ✅ Done this pass |
 | **16** | **Next up** | Real device testing of `FoundationModels` availability/perf and the daily-reset boundary (device timezone/midnight edge cases); optional export (share sheet) for published posts; eventually a real backend for `ReadView`/`readPublished(id:)`. | ⏳ Not started |
+| **17** | **Merged UI + camera from `main`** | Pulled in the `main`/"Writing" branch's design system (`Support/Theme.swift`, `Support/HardCard.swift`) and restyled every screen (Home, Writing, Profile, Read, PostList, a new branded `SplashView`) to match it, without touching the SwiftData/PromptManager/daily-prompt logic underneath. Also replaced the `PhotosPicker` "Camera" photo-attach with `main`'s VisionKit document scanner + Vision OCR (`Views/DocumentScannerView.swift`, `Support/TextRecognizer.swift`) — scanning a page now transcribes it straight into the draft instead of attaching a photo. | ✅ Done this pass |
 
 ## ⚠️ Things worth double-checking on your machine
 - `FoundationModels` requires iOS 26+ on Apple Intelligence–eligible hardware; on the Simulator or unsupported devices, `SystemLanguageModel.default.availability` won't be `.available` and the app will silently use the fallback prompt bank instead of crashing.
