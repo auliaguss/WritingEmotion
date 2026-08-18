@@ -8,6 +8,8 @@
 //  and `PostListView` (a standalone screen with its own NavigationStack,
 //  for anywhere that needs it pushed/presented on its own).
 //
+//  Visual styling (Theme + hardCard) ported from the "Writing" branch.
+//
 
 import SwiftUI
 import SwiftData
@@ -45,11 +47,18 @@ struct PostListContent: View {
     var body: some View {
         Group {
             if posts.isEmpty {
-                ContentUnavailableView(mode.emptyMessage, systemImage: mode == .drafts ? "doc.text" : "tray.full")
+                Text(mode.emptyMessage)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.inkMuted)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
             } else {
                 List {
                     ForEach(posts) { post in
                         PostRow(post: post)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                     }
                     .onDelete { offsets in
                         if mode == .drafts {
@@ -58,6 +67,7 @@ struct PostListContent: View {
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
     }
@@ -71,13 +81,33 @@ struct PostListContent: View {
 }
 
 struct PostListView: View {
+    @Environment(\.dismiss) private var dismiss
     @Bindable var user: User
     let mode: PostListMode
 
     var body: some View {
         NavigationStack {
-            PostListContent(user: user, mode: mode)
-                .navigationTitle(mode.title)
+            ZStack {
+                Theme.background.ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    HStack {
+                        RoundBackButton { dismiss() }
+                        Spacer()
+                        Text(mode.title)
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(Theme.ink)
+                        Spacer()
+                        Color.clear.frame(width: 34, height: 34)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+
+                    PostListContent(user: user, mode: mode)
+                        .padding(.horizontal, 20)
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }
@@ -89,18 +119,19 @@ struct PostRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(post.promptFullText)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.inkMuted)
                 Spacer()
                 if post.isPublished, let date = post.publishedAt {
                     Text(date, style: .date)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.inkMuted)
                 }
             }
 
             Text(post.textContent)
-                .font(.body)
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.ink)
                 .lineLimit(4)
 
             if let data = post.attachedImageData, let uiImage = UIImage(data: data) {
@@ -115,14 +146,19 @@ struct PostRow: View {
             HStack(spacing: 6) {
                 ForEach(post.promptEmotions, id: \.self) { emotion in
                     Text(emotion)
-                        .font(.caption2.weight(.medium))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.ink)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(.thinMaterial, in: Capsule())
+                        .background(Capsule().fill(Theme.card))
+                        .overlay(Capsule().stroke(Theme.ink.opacity(0.4), lineWidth: 1))
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.ink.opacity(0.4), lineWidth: 1.5))
     }
 }
 
