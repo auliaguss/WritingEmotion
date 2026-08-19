@@ -1,32 +1,5 @@
-//
-//  ReadView.swift
-//  AIEmotions
-//
-//  "Discover a piece written by someone else." Reading OTHER users'
-//  published posts needs a backend to fetch from, which this build
-//  intentionally doesn't have (see User.swift's readPublished note /
-//  PROJECT.md) — so this corkboard is populated from SampleNoteBank, a
-//  fixed pool of placeholder "other writer" notes, not real people.
-//
-//  Ported from the "Writing" branch's read-another-logic prototype:
-//  a pannable/zoomable board of sticky notes, shake-to-reshuffle, tap a
-//  note to read it full-size with a bookmark toggle and a "Read Another
-//  Note" shortcut. The original prototype kept swapping the user's real
-//  published posts out for fake ones on every shake — SampleNoteBank
-//  fixes that by construction: this view never reads or writes `Post`
-//  or `user.posts` at all, only the fixed sample pool and the
-//  bookmark/read tracking on `User` (see SampleNoteBank.swift).
-//
-
 import SwiftUI
 import UIKit
-import SwiftData
-
-private struct NoteLayout {
-    let position: CGPoint
-    let rotation: Double
-    let colorIndex: Int
-}
 
 private let noteColors: [Color] = [
     Color(hex: 0xFFF9C4),
@@ -38,6 +11,12 @@ private let noteColors: [Color] = [
     Color(hex: 0xB2DFDB),
     Color(hex: 0xF8BBD0),
 ]
+
+private struct NoteLayout {
+    let position: CGPoint
+    let rotation: Double
+    let colorIndex: Int
+}
 
 private func layoutsForEntries(count: Int, rows: Int = 3) -> [NoteLayout] {
     let noteW: CGFloat = 180
@@ -65,19 +44,78 @@ private func layoutsForEntries(count: Int, rows: Int = 3) -> [NoteLayout] {
 }
 
 private struct BoardItem: Identifiable {
-    var id: Int { note.id }
-    var note: SampleNote
+    var id: WritingEntry.ID { entry.id }
+    var entry: WritingEntry
     var layout: NoteLayout
     var yOffset: CGFloat = 0
     var opacity: Double = 1
     var scale: CGFloat = 1
 }
 
-struct ReadView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var user: User
+private enum DummyContent {
+    static let pool: [(body: String, promptIndex: Int)] = [
+        ("The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour.", 2),
+        ("Sometimes I wonder if the stars remember us the way we remember them — distant, bright, full of stories we'll never fully understand.", 1),
+        ("She left the letter on the kitchen table, folded twice, smelling faintly of lavender. He didn't open it until spring.", 2),
+        ("The old bookshop on 5th street closed today. Twenty years of dog-eared pages and whispered recommendations, gone.", 3),
+        ("I learned to swim in words before I learned to swim in water. The page was always kinder than the ocean.", 4),
+        ("There's a kind of silence that only exists at 3 AM — not empty, but full, like a breath held too long.", 5),
+        ("My grandmother's hands told stories her mouth never did. Each wrinkle was a chapter, each scar a plot twist.", 0),
+        ("We built a fort out of cardboard boxes and called it a castle. For one afternoon, we were kings of something real.", 1),
+        ("The coffee shop where we first met turned into a parking lot. Progress, they called it. I called it erasure.", 2),
+        ("I keep a jar of sea glass on my desk. Each piece was sharp once, before the ocean taught it patience.", 3),
+        ("He played the same song every morning. Not because he loved it, but because she used to hum it in her sleep.", 0),
+        ("The dictionary defines home as a place of residence. It says nothing about the ache of returning to one that no longer fits.", 0),
+        ("I found a photograph of us laughing, and I couldn't remember what was so funny. That terrified me more than forgetting your face.", 4),
+        ("The taxi driver told me his whole life story in twelve blocks. Somewhere between 3rd and 7th Avenue, I forgot my own sadness.", 5),
+        ("She painted sunsets the way other people breathe — effortlessly, endlessly, as if the sky owed her its palette.", 1),
+        ("There's a tree in my old backyard that still has my initials carved into it. I wonder if it remembers the boy who held the knife.", 0),
+        ("The last voicemail she left me is still on my phone. I can't listen to it, but I'll never delete it.", 3),
+        ("We used to measure summer by the height of the sunflowers. This year, nobody planted any.", 4),
+        ("I wrote your name in the sand and watched the tide take it. The ocean doesn't care about permanence either.", 1),
+        ("The library smelled of dust and possibility. Every shelf was a door, every book a key to somewhere I'd never been.", 5),
+        ("My father's watch stopped the day he did. I wear it anyway — a reminder that some things outlast the hands that wound them.", 0),
+        ("The streetlights came on one by one like tired eyes opening. The city never truly sleeps, it just pretends.", 2),
+        ("I pressed a wildflower between the pages of your favourite book. You'll find it someday, and maybe you'll think of me.", 1),
+        ("The train pulled away and I didn't wave. Sometimes goodbye is just standing still while everything else moves.", 3),
+        ("She collected words the way magpies collect shiny things — greedily, lovingly, with no regard for what's practical.", 5),
+        ("The kitchen smelled of cinnamon and regret. I was baking her recipe, but it would never taste the same.", 0),
+        ("I counted the cracks in the ceiling and imagined they were rivers on a map leading somewhere I'd never go.", 4),
+        ("The old piano in the corner hadn't been tuned in years, but it still knew how to hold a melody hostage.", 2),
+        ("We promised to write letters, real ones, with stamps and everything. The first one arrived three months late. The second one never came.", 1),
+        ("The fog rolled in like a secret, hiding the harbour and muffling the horns. For one hour, the world was only as big as my front porch.", 5),
+    ]
 
-    @State private var selectedNote: SampleNote?
+    static func initialBatch() -> [WritingEntry] {
+        pool.enumerated().map { i, item in
+            WritingEntry(
+                body: item.body,
+                prompt: WritingPrompts.all[item.promptIndex],
+                status: .published,
+                createdAt: Calendar.current.date(byAdding: .day, value: -i, to: Date()) ?? Date()
+            )
+        }
+    }
+
+    static func randomBatch(minCount: Int = 12) -> [WritingEntry] {
+        let shuffled = pool.shuffled()
+        let count = Int.random(in: min(minCount, shuffled.count)...shuffled.count)
+        return shuffled.prefix(count).enumerated().map { i, item in
+            WritingEntry(
+                body: item.body,
+                prompt: WritingPrompts.all[item.promptIndex],
+                status: .published,
+                createdAt: Calendar.current.date(byAdding: .minute, value: -i * 7, to: Date()) ?? Date()
+            )
+        }
+    }
+}
+
+struct ReadView: View {
+    @EnvironmentObject var store: AppStore
+    @Binding var route: Route
+
+    @State private var selectedEntry: WritingEntry?
     @State private var showDetail = false
 
     @State private var scale: CGFloat = 1.0
@@ -104,27 +142,31 @@ struct ReadView: View {
                 emptyState
             }
 
-            if showDetail, let note = selectedNote {
+            if showDetail, let entry = selectedEntry {
                 NoteDetailView(
-                    note: note,
-                    user: user,
+                    entry: entry,
                     onClose: {
                         withAnimation(.easeInOut(duration: 0.3)) {
                             showDetail = false
-                            selectedNote = nil
+                            selectedEntry = nil
                         }
                     },
                     onReadAnother: {
                         readAnotherNote()
                     }
                 )
+                .environmentObject(store)
                 .transition(.move(edge: .trailing))
                 .zIndex(10)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
-            if boardItems.isEmpty {
+            #if DEBUG
+            if store.publishedEntries.isEmpty {
+                store.entries.append(contentsOf: DummyContent.initialBatch())
+            }
+            #endif
+            if !isRefreshing {
                 syncBoardItems()
             }
         }
@@ -135,9 +177,9 @@ struct ReadView: View {
 
     // MARK: - Refresh (shake) flow
 
-    /// Reshuffles which sample notes are on the board — never touches the
-    /// user's real posts. Every visible note falls + fades out first
-    /// (staggered), then a new random batch animates back in.
+    /// Call this from your shake detector. Runs two phases:
+    /// 1. Every visible note falls + fades out, staggered for a "swept off the board" feel.
+    /// 2. New notes are swapped in and animate back onto the board, staggered too.
     private func refreshBoard() {
         guard !isRefreshing, !showDetail else { return }
         isRefreshing = true
@@ -170,10 +212,15 @@ struct ReadView: View {
     }
 
     private func swapInNewNotes() {
-        let newBatch = SampleNoteBank.randomBatch()
-        let layouts = layoutsForEntries(count: newBatch.count)
-        boardItems = zip(newBatch, layouts).map { note, layout in
-            BoardItem(note: note, layout: layout, yOffset: -500, opacity: 0, scale: 0.85)
+        // 👉 Replace this line with a real fetch once you have a backend.
+        let newPublished = DummyContent.randomBatch()
+
+        store.entries.removeAll { $0.status == .published }
+        store.entries.append(contentsOf: newPublished)
+
+        let layouts = layoutsForEntries(count: newPublished.count)
+        boardItems = zip(newPublished, layouts).map { entry, layout in
+            BoardItem(entry: entry, layout: layout, yOffset: -500, opacity: 0, scale: 0.85)
         }
 
         withAnimation(.easeOut(duration: 0.3)) {
@@ -201,40 +248,40 @@ struct ReadView: View {
     }
 
     private func syncBoardItems() {
-        let notes = SampleNoteBank.randomBatch()
-        let layouts = layoutsForEntries(count: notes.count)
-        boardItems = zip(notes, layouts).map { note, layout in
-            BoardItem(note: note, layout: layout)
+        let entries = store.publishedEntries
+        let layouts = layoutsForEntries(count: entries.count)
+        boardItems = zip(entries, layouts).map { entry, layout in
+            BoardItem(entry: entry, layout: layout)
         }
     }
 
-    private func openNote(_ note: SampleNote) {
-        user.markSampleNoteRead(note.id)
-        selectedNote = note
+    private func openNote(_ entry: WritingEntry) {
+        store.markAsRead(entry)
+        selectedEntry = entry
         withAnimation(.easeInOut(duration: 0.3)) {
             showDetail = true
         }
     }
 
     private func readAnotherNote() {
-        let candidates = SampleNoteBank.all.filter { !user.isSampleNoteRead($0.id) && $0.id != selectedNote?.id }
+        let candidates = store.unreadPublishedEntries.filter { $0.id != selectedEntry?.id }
         guard let next = candidates.randomElement() else { return }
-        user.markSampleNoteRead(next.id)
+        store.markAsRead(next)
         withAnimation(.easeInOut(duration: 0.25)) {
-            selectedNote = next
+            selectedEntry = next
         }
     }
 
     private var header: some View {
         HStack {
-            RoundBackButton { dismiss() }
+            RoundBackButton { route = .home }
             Spacer()
-            Text("Read")
+            Text("Board")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(Theme.ink)
             Spacer()
-            NavigationLink {
-                BookmarksView(user: user)
+            Button {
+                route = .bookmarks
             } label: {
                 Image(systemName: "bookmark.fill")
                     .font(.system(size: 15, weight: .semibold))
@@ -252,10 +299,10 @@ struct ReadView: View {
             Image(systemName: "pin.slash")
                 .font(.system(size: 40))
                 .foregroundStyle(Theme.inkMuted)
-            Text("The board is empty")
+            Text("No published notes yet")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.ink)
-            Text("Shake to bring up some notes!")
+            Text("Write and publish something first!")
                 .font(.system(size: 14))
                 .foregroundStyle(Theme.inkMuted)
         }
@@ -272,14 +319,14 @@ struct ReadView: View {
 
                 ForEach(boardItems) { item in
                     StickyNoteView(
-                        note: item.note,
+                        entry: item.entry,
                         color: noteColors[item.layout.colorIndex],
                         rotation: item.layout.rotation,
-                        isBookmarked: user.isSampleNoteBookmarked(item.note.id),
-                        isRead: user.isSampleNoteRead(item.note.id),
+                        isBookmarked: store.isBookmarked(item.entry),
+                        isRead: store.isRead(item.entry),
                         isDragging: $isDragging
                     ) {
-                        openNote(item.note)
+                        openNote(item.entry)
                     }
                     .scaleEffect(item.scale)
                     .opacity(item.opacity)
@@ -363,19 +410,13 @@ struct ReadView: View {
 }
 
 private struct StickyNoteView: View {
-    let note: SampleNote
+    let entry: WritingEntry
     let color: Color
     let rotation: Double
     var isBookmarked: Bool = false
     var isRead: Bool = false
     @Binding var isDragging: Bool
     let onTap: () -> Void
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter
-    }()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -395,8 +436,8 @@ private struct StickyNoteView: View {
 
             Spacer(minLength: 0)
 
-            Text("\u{201C}\(note.prompt)\u{201D}")
-                .font(.system(size: 13, weight: .medium, design: .serif))
+            Text("\u{201C}\(entry.prompt)\u{201D}")
+                .font(.custom("WaitingfortheSunrise", size: 13))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(4)
                 .multilineTextAlignment(.center)
@@ -404,7 +445,7 @@ private struct StickyNoteView: View {
 
             Spacer(minLength: 0)
 
-            Text(Self.dateFormatter.string(from: note.createdAt))
+            Text(entry.dateLabel)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.ink.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -440,20 +481,28 @@ private struct StickyNoteView: View {
     }
 }
 
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 private struct NoteDetailView: View {
-    let note: SampleNote
-    @Bindable var user: User
+    let entry: WritingEntry
+    @EnvironmentObject var store: AppStore
     let onClose: () -> Void
     let onReadAnother: () -> Void
 
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter
-    }()
+    @State private var scrollOffset: CGFloat = 0
+    private let scrollThreshold: CGFloat = 40
 
     private var hasUnread: Bool {
-        SampleNoteBank.all.contains { !user.isSampleNoteRead($0.id) && $0.id != note.id }
+        store.unreadPublishedEntries.contains { $0.id != entry.id }
+    }
+
+    private var showTopButton: Bool {
+        scrollOffset > -scrollThreshold
     }
 
     var body: some View {
@@ -462,14 +511,14 @@ private struct NoteDetailView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text(Self.dateFormatter.string(from: note.createdAt))
+                    Text(entry.dateLabel)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Theme.inkMuted)
                     Spacer()
                     Button {
-                        user.toggleSampleNoteBookmark(note.id)
+                        store.toggleBookmark(entry)
                     } label: {
-                        Image(systemName: user.isSampleNoteBookmarked(note.id) ? "bookmark.fill" : "bookmark")
+                        Image(systemName: store.isBookmarked(entry) ? "bookmark.fill" : "bookmark")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Theme.accent)
                             .frame(width: 32, height: 32)
@@ -486,17 +535,40 @@ private struct NoteDetailView: View {
                     }
                 }
 
-                readAnotherButton
-
-                ScrollView {
-                    Text(note.body)
-                        .font(.system(size: 18, design: .serif))
-                        .foregroundStyle(Theme.ink)
-                        .lineSpacing(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if showTopButton {
+                    readAnotherButton
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                readAnotherButton
+                ScrollView {
+                    ZStack(alignment: .top) {
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetKey.self,
+                                    value: proxy.frame(in: .named("noteScroll")).minY
+                                )
+                        }
+                        .frame(height: 0)
+
+                        Text(entry.body)
+                            .font(.custom("WaitingfortheSunrise", size: 24))
+                            .foregroundStyle(Theme.ink)
+                            .lineSpacing(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .coordinateSpace(name: "noteScroll")
+                .onPreferenceChange(ScrollOffsetKey.self) { value in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollOffset = value
+                    }
+                }
+
+                if !showTopButton {
+                    readAnotherButton
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
             .padding(24)
         }
@@ -528,8 +600,8 @@ private struct NoteDetailView: View {
 }
 
 #Preview {
-    NavigationStack {
-        ReadView(user: User())
-    }
-    .modelContainer(for: [User.self, Post.self], inMemory: true)
+    let store = AppStore()
+    store.entries.append(contentsOf: DummyContent.initialBatch())
+    return ReadView(route: .constant(.read))
+        .environmentObject(store)
 }
