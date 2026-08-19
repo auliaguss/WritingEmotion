@@ -8,6 +8,21 @@
 //  what the live Profile screen shows in place of the emotional-palette
 //  bars (see EmotionPaletteView, now testing-only).
 //
+//  Deliberately reads `post.promptEmotions` (the free-text CREATIVE
+//  display tags, e.g. "wistful yearning") rather than `post.coreEmotion`
+//  (the strict 8-category backend enum) when building the model prompt
+//  below. The whole point of the hybrid split in CoreEmotion.swift is
+//  that the creative side stays expressive language a human reflection
+//  should sound like, while the strict side stays math-only — feeding
+//  the FM raw enum cases like "joy"/"trust" repeatedly would push this
+//  right back toward the flat, data-report tone we're trying to avoid.
+//
+//  Button-triggered, not automatic. The result is written straight onto
+//  `User.styleSummaryText` (see User.setStyleSummary), so it's durable
+//  across relaunches and stays exactly as-is until the writer taps
+//  Generate again — see StyleSummaryCard for the button/disabled-state
+//  logic that goes with this.
+//
 //  Everything runs on-device via FoundationModels, same as PromptManager
 //  — no network calls, matching the project's "keep it strictly local"
 //  goal. Falls back to a softer (still non-clinical) templated summary
@@ -23,7 +38,6 @@ import Observation
 final class StyleSummaryGenerator {
 
     private(set) var isGenerating = false
-    private(set) var summary: String?
     var generationError: String?
 
     private var session: LanguageModelSession
@@ -31,61 +45,51 @@ final class StyleSummaryGenerator {
     init() {
         session = LanguageModelSession(instructions: Self.instructions)
     }
-    
-    /* Example 1 for Prompting
-     private static let instructions = """
-     You write a short, warm reflection (2-4 sentences) on someone's recent \
-     creative writing, as if a thoughtful friend had actually sat down and \
-     read it.
 
-     You'll be given the full text of up to 5 of their most recent \
-     published pieces, most recent first, each labeled with the emotion(s) \
-     its prompt was meant to evoke.
-
-     Read for their actual voice: word choice, imagery, rhythm, recurring \
-     themes or images, how they tend to open or land a piece — not just \
-     which emotion words are attached to it. Speak directly TO the writer \
-     ("you"), never about them in the third person.
-
-     Be specific and genuine. Reference something concrete from what they \
-     actually wrote when you can, rather than only naming emotions in the \
-     abstract. Never produce a flat data-report sentence like "you've been \
-     writing with emotions mixed in between X, Y, and Z" — that tone is \
-     exactly what to avoid. Write flowing prose only: no lists, no headers, \
-     no bullet points.
-     """
-     */
-    
     private static let instructions = """
-        You are an insightful, casual observer analyzing a writer's recent entries.
-        Write a highly concise, natural reflection (maximum 3 sentences) directly to the writer using "you".
-        
-        Your goal is to describe their current writing voice and the underlying emotional current.
-        
-        CRITICAL RULES:
-        1. NEVER use words like "piece", "post", "entry", "writing", or "prompt". 
-        2. NEVER quote their text directly.
-        3. NEVER directly address the emotions like "fear", "awe", or other emotionaldata provided.
-        4. Instead, weave their recent emotions into your observation seamlessly (e.g., instead of saying "You felt nostalgic", say "There's a heavy sense of looking back in your words").
-        5. Keep it conversational, relaxed, and highly concise. Do not sound like an AI data report.
-        """
+    You write a short, warm reflection (2-4 sentences) on someone's recent \
+    creative writing, as if a thoughtful friend had actually sat down and \
+    read it.
 
-    /// Regenerates the summary from the user's most recent (up to 5)
-    /// published posts. Clears the summary (rather than erroring) if
-    /// nothing's published yet — the empty state is handled by the view.
-    func refresh(for user: User) async {
+    You'll be given the full text of up to 5 of their most recent \
+    published pieces, most recent first, each labeled with the emotion(s) \
+    its prompt was meant to evoke.
+
+    Read for their actual voice: word choice, imagery, rhythm, recurring \
+    themes or images, how they tend to open or land a piece — not just \
+    which emotion words are attached to it. Speak directly TO the writer \
+    using "you" ("you are...", "you have...", "your..."). Never use the \
+    word "I" anywhere in the reflection, and never refer to yourself or \
+    to the act of reading/judging their work — this should read like a \
+    personalized result, the way a well-written personality quiz talks \
+    about you, never like someone is personally observing or grading \
+    them.
+
+    Be specific and genuine. Reference something concrete from what they \
+    actually wrote when you can, rather than only naming emotions in the \
+    abstract. Never produce a flat data-report sentence like "you've been \
+    writing with emotions mixed in between X, Y, and Z" — that tone is \
+    exactly what to avoid. Write flowing prose only: no lists, no headers, \
+    no bullet points.
+    """
+
+    /// Generates a fresh reflection from the user's most recent (up to 5)
+    /// published posts and persists it onto `user.styleSummaryText`.
+    /// Does nothing if nothing's published yet — the empty state is
+    /// handled by the view. Called only when the writer taps
+    /// Generate/Regenerate (see StyleSummaryCard) — never automatically.
+    func generate(for user: User) async {
         let recent = Array(user.loadPublished().prefix(5))
-        guard !recent.isEmpty else {
-            summary = nil
-            return
-        }
+        guard !recent.isEmpty else { return }
+
+        let sourceIDs = recent.map(\.uniqueID)
 
         isGenerating = true
         defer { isGenerating = false }
 
         guard SystemLanguageModel.default.availability == .available else {
             generationError = "On-device model unavailable — showing a simple summary instead."
-            summary = Self.fallbackSummary(profile: user.emotionProfile)
+            user.setStyleSummary(Self.fallbackSummary(profile: user.emotionProfile), sourcePostIDs: sourceIDs)
             return
         }
 
@@ -95,49 +99,33 @@ final class StyleSummaryGenerator {
                 generating: GeneratedStyleSummary.self
             )
             generationError = nil
-            summary = response.content.summary
+            user.setStyleSummary(response.content.summary, sourcePostIDs: sourceIDs)
         } catch {
             generationError = error.localizedDescription
-            summary = Self.fallbackSummary(profile: user.emotionProfile)
+            user.setStyleSummary(Self.fallbackSummary(profile: user.emotionProfile), sourcePostIDs: sourceIDs)
         }
     }
 
-//    private static func prompt(for posts: [Post]) -> String {
-//        var lines = ["Here are the writer's most recent published pieces, most recent first:"]
-//        for (index, post) in posts.enumerated() {
-//            let emotions = post.promptEmotions.joined(separator: ", ")
-//            lines.append("""
-//
-//            Piece \(index + 1) — written for the emotion(s): \(emotions.isEmpty ? "unspecified" : emotions)
-//            \"\"\"
-//            \(post.textContent)
-//            \"\"\"
-//            """)
-//        }
-//        lines.append("\nWrite the reflection now.")
-//        return lines.joined(separator: "\n")
-//    }
-    
     private static func prompt(for posts: [Post]) -> String {
-            var lines = ["Here is what the user recently wrote and the emotions they were feeling:"]
-            
-            for post in posts {
-                let emotions = post.promptEmotions.joined(separator: ", ")
-                // Strip out the "Piece 1" labels so the AI doesn't parrot them back
-                lines.append("""
-                
-                [Emotions: \(emotions.isEmpty ? "unspecified" : emotions)]
-                \(post.textContent)
-                """)
-            }
-            
-            lines.append("\nProvide the 2-3 sentence reflection now without directly mentioning the emotions.")
-            return lines.joined(separator: "\n")
+        var lines = ["Here are the writer's most recent published pieces, most recent first:"]
+        for (index, post) in posts.enumerated() {
+            let emotions = post.promptEmotions.joined(separator: ", ")
+            lines.append("""
+
+            Piece \(index + 1) — written for the emotion(s): \(emotions.isEmpty ? "unspecified" : emotions)
+            \"\"\"
+            \(post.textContent)
+            \"\"\"
+            """)
         }
+        lines.append("\nWrite the reflection now.")
+        return lines.joined(separator: "\n")
+    }
 
     /// Used only when the on-device model isn't available. Still
     /// deliberately phrased as a reflection rather than a data dump, even
-    /// though it's built from the raw tally under the hood.
+    /// though it's built from the raw tally under the hood. Never uses
+    /// "I", same rule as the model-generated version.
     private static func fallbackSummary(profile: [String: Int]) -> String {
         let top = profile.sorted { $0.value > $1.value }.prefix(2).map(\.key)
         switch top.count {
@@ -155,6 +143,6 @@ final class StyleSummaryGenerator {
 
 @Generable
 struct GeneratedStyleSummary {
-    @Guide(description: "A highly concise (max 3 sentences), natural reflection on the user's voice and emotions. Do not use words like 'piece' or 'post', and do not quote them. Do not use the emotion words provided in the published writings.")
+    @Guide(description: "A warm, specific, 2-4 sentence reflection on the writer's recent pieces, written directly to them using 'you' ('you are...', 'you have...'), never the word 'I', in flowing prose with no lists or headers.")
     var summary: String
 }

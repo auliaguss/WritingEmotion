@@ -3,9 +3,11 @@
 //  AIEmotions
 //
 //  The local, on-device profile. There is exactly one of these per
-//  install. `emotionProfile` is the running tally of which emotions the
-//  person has written from most — PromptManager reads it to bias what
-//  it generates next.
+//  install. `emotionProfile` is the running tally of which CORE emotions
+//  the person has written from most (see CoreEmotion.swift) — PromptManager
+//  reads it to bias what it generates next. Keys are always one of
+//  CoreEmotion's 8 raw values, never the freeform creative display text
+//  a prompt shows the user.
 //
 //  Per the project scope, this stays fully local: `readPublished(id:)`
 //  from the class diagram (reading another device's published posts)
@@ -22,6 +24,17 @@ final class User {
     var profileText: String
     var emotionProfile: [String: Int]
     var postsWrittenCount: Int
+
+    // MARK: - Style summary (button-generated, persistent)
+    // The last-generated "In your words" reflection text, persisted so it
+    // survives app relaunches and simply stays put until the user taps
+    // Generate again — see StyleSummaryGenerator / StyleSummaryCard.
+    var styleSummaryText: String?
+    // The published-post IDs (as strings) that were fed into the model
+    // to produce `styleSummaryText`, most-recent-first — this is what
+    // lets the Generate button know whether there's anything NEW to
+    // regenerate from (see canRegenerateStyleSummary()).
+    var styleSummarySourcePostIDs: [String] = []
 
     // MARK: - Daily prompt state
     // The day's 3 prompts, persisted so they're stable across app
@@ -78,21 +91,42 @@ final class User {
     // readPublished(id: !deviceID) -> [Post] is intentionally skipped —
     // see file header. Re-add here once there's a backend to read from.
 
-    /// Bumps the weight for one emotion. Called whenever a post is
-    /// drafted/published from a prompt carrying that emotion tag, so the
-    /// profile drifts toward what the person actually writes about.
-    func updateEmotionWeight(_ emotion: String) {
-        let key = emotion.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !key.isEmpty else { return }
-        emotionProfile[key, default: 0] += 1
+    /// Bumps the weight for one CORE emotion. Called once per post, with
+    /// the strict `CoreEmotion` category that post's prompt was tagged
+    /// with — never the freeform display text. Silently ignores anything
+    /// that isn't a real `CoreEmotion` raw value, since `emotionProfile`
+    /// is meant to stay a closed, poolable set.
+    func updateEmotionWeight(_ coreEmotion: String) {
+        guard CoreEmotion(rawValue: coreEmotion) != nil else { return }
+        emotionProfile[coreEmotion, default: 0] += 1
     }
 
-    /// Top emotions by weight, most-favored first.
+    /// Top core emotions by weight, most-favored first.
     func topEmotions(_ limit: Int = 3) -> [String] {
         emotionProfile
             .sorted { $0.value > $1.value }
             .prefix(limit)
             .map(\.key)
+    }
+
+    // MARK: - Style summary (button-generated, persistent)
+
+    /// Persists a freshly generated reflection along with the IDs of the
+    /// published posts it was built from. Called by
+    /// `StyleSummaryGenerator` after a successful (or fallback) generation.
+    func setStyleSummary(_ text: String, sourcePostIDs: [UUID]) {
+        styleSummaryText = text
+        styleSummarySourcePostIDs = sourcePostIDs.map(\.uuidString)
+    }
+
+    /// Whether the Generate/Regenerate button should be enabled — i.e.
+    /// whether the writer's latest 5 published posts differ from the set
+    /// the current summary was actually generated from. Stays false
+    /// (button disabled) if nothing's changed, so the same 5 pieces never
+    /// produce a different summary just because the user tapped again.
+    func canRegenerateStyleSummary() -> Bool {
+        let currentIDs = loadPublished().prefix(5).map { $0.uniqueID.uuidString }
+        return Array(currentIDs) != styleSummarySourcePostIDs
     }
 
     /// Weighted (bias-driven) prompt generation only kicks in once at

@@ -39,13 +39,11 @@ struct TestingProfileView: View {
 
                     dailyStateSummary
 
-                    if !user.emotionProfile.isEmpty {
-                        EmotionPaletteView(emotionProfile: user.emotionProfile)
-                    } else {
-                        Text("No emotion weights yet — save a draft or publish something to populate this.")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Theme.inkMuted)
-                    }
+                    // Always shows all 8 CoreEmotion categories, with a
+                    // "—" placeholder for any that don't have a weight
+                    // yet — unlike the live top-3 view, this never hides
+                    // rows, so it always reflects the full backend state.
+                    EmotionPaletteView(emotionProfile: user.emotionProfile, mode: .allEmotions)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
@@ -116,7 +114,7 @@ struct TestingProfileView: View {
 }
 
 #Preview {
-    let user = User(profileText: "Testing.", emotionProfile: ["nostalgia": 6, "hope": 2])
+    let user = User(profileText: "Testing.", emotionProfile: ["joy": 6, "trust": 2])
     return NavigationStack {
         TestingProfileView(user: user)
     }

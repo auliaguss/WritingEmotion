@@ -19,6 +19,9 @@ struct PromptData: Identifiable, Codable, Hashable {
     var fullText: String
     var verb: String
     var emotionData: String
+    
+    // The new strict category for the backend math
+    var coreEmotion: String
 
     /// Convenience: the emotion tags split out, lowercased & trimmed.
     var emotions: [String] {
@@ -28,10 +31,12 @@ struct PromptData: Identifiable, Codable, Hashable {
             .filter { !$0.isEmpty }
     }
 
-    init(id: UUID = UUID(), fullText: String, verb: String, emotionData: String) {
+    // Updated init to require the new coreEmotion string
+    init(id: UUID = UUID(), fullText: String, verb: String, emotionData: String, coreEmotion: String) {
         self.id = id
         self.fullText = fullText
         self.verb = verb
         self.emotionData = emotionData
+        self.coreEmotion = coreEmotion
     }
 }

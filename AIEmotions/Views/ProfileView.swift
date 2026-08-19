@@ -85,6 +85,8 @@ struct ProfileView: View {
                     }
                     .padding(.horizontal, 32)
 
+                    EmotionPaletteView(emotionProfile: user.emotionProfile, mode: .topThree)
+
                     StyleSummaryCard(user: user)
 
                     modeToggle
@@ -159,7 +161,7 @@ struct ProfileView: View {
 }
 
 #Preview {
-    let user = User(profileText: "Writing my way through feelings.", emotionProfile: ["nostalgia": 4, "hope": 2, "unease": 1])
+    let user = User(profileText: "Writing my way through feelings.", emotionProfile: ["joy": 4, "trust": 2, "fear": 1])
     return NavigationStack {
         ProfileView(user: user)
     }
