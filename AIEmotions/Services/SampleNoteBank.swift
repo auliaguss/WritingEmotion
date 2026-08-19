@@ -24,20 +24,32 @@ struct SampleNote: Identifiable, Hashable {
     let id: Int
     let body: String
     let prompt: String
+    let emotionData: String
     let createdAt: Date
+
+    /// Mirrors Post.promptEmotions / PromptData.emotions — same
+    /// comma-separated-string convention, so sticky cards can render
+    /// sample-note pills with identical logic to real Post pills.
+    var emotions: [String] {
+        emotionData
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            .filter { !$0.isEmpty }
+    }
 }
 
 enum SampleNoteBank {
     /// Cycled across the pool below so each sample note carries a prompt
-    /// in AIEmotions' own "Verb-ing + Object" voice (see PromptManager),
-    /// rather than the old Writing branch's unrelated static prompt list.
-    private static let prompts = [
-        "Chasing fireflies through fog",
-        "Unpacking a stranger's suitcase",
-        "Whispering to an empty room",
-        "Folding yesterday's letters",
-        "Racing a closing door",
-        "Planting a borrowed garden",
+    /// + emotion pair in AIEmotions' own voice — reusing PromptManager's
+    /// fallback bank verbatim — rather than the old Writing branch's
+    /// unrelated static prompt list (which also had no emotion data).
+    private static let promptPairs: [(text: String, emotionData: String)] = [
+        ("Chasing fireflies through fog", "nostalgia, wonder"),
+        ("Unpacking a stranger's suitcase", "curiosity, unease"),
+        ("Whispering to an empty room", "loneliness, comfort"),
+        ("Folding yesterday's letters", "grief, tenderness"),
+        ("Racing a closing door", "urgency, hope"),
+        ("Planting a borrowed garden", "patience, optimism"),
     ]
 
     private static let bodies: [String] = [
@@ -75,10 +87,12 @@ enum SampleNoteBank {
 
     /// The full fixed pool, in stable id order.
     static let all: [SampleNote] = bodies.enumerated().map { index, body in
-        SampleNote(
+        let pair = promptPairs[index % promptPairs.count]
+        return SampleNote(
             id: index,
             body: body,
-            prompt: prompts[index % prompts.count],
+            prompt: pair.text,
+            emotionData: pair.emotionData,
             createdAt: Calendar.current.date(byAdding: .day, value: -index, to: Date()) ?? Date()
         )
     }

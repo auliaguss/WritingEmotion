@@ -2,9 +2,16 @@
 //  ProfileView.swift
 //  AIEmotions
 //
-//  Profile now also hosts Drafts/Published — there's no separate tab
-//  bar anymore, so this is the only place those lists live, switched
-//  via a segmented "Publish (n) / Drafts (n)" toggle.
+//  Profile now also hosts Drafts/Published/Bookmark — there's no separate
+//  tab bar anymore, so this is the only place those live, switched via a
+//  segmented "Publish (n) / Drafts (n) / Bookmark (n)" toggle. Published
+//  and Bookmark render as a sticky-note grid (StickyNoteCard); Drafts
+//  stays a plain editable list (PostListContent) since a draft is still
+//  in progress rather than a finished piece.
+//
+//  Bookmarks used to have their own standalone screen reachable from
+//  ReadView's header — consolidated in here instead, so there's one
+//  place to see them, not two.
 //
 //  Visual styling (Theme + hardCard) ported from the "Writing" branch.
 //
@@ -16,6 +23,10 @@ import UIKit
 import SwiftData
 #endif
 
+private enum ProfileTab {
+    case published, drafts, bookmarks
+}
+
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var user: User
@@ -23,8 +34,14 @@ struct ProfileView: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var draftBio: String = ""
     @State private var isEditing = false
-    @State private var selectedMode: PostListMode = .published
+    @State private var selectedTab: ProfileTab = .published
     @State private var selectedDraft: Post?
+    @State private var readingItem: ReadableItem?
+
+    /// nil means "All". Otherwise the first-of-month date for the
+    /// selected month, used both as the picker's identity and to group
+    /// published posts by calendar month.
+    @State private var selectedMonth: Date?
 
     var body: some View {
         ZStack {
@@ -92,10 +109,12 @@ struct ProfileView: View {
 
                     modeToggle
 
-                    PostListContent(user: user, mode: selectedMode) { draft in
-                        selectedDraft = draft
+                    if selectedTab == .published {
+                        monthFilter
                     }
-                    .frame(minHeight: 200)
+
+                    tabContent
+                        .frame(minHeight: 200)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
@@ -104,6 +123,23 @@ struct ProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(item: $selectedDraft) { draft in
             WritingView(user: user, draft: draft)
+        }
+        .fullScreenCover(item: $readingItem) { item in
+            ReadingModeView(user: user, item: item)
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .drafts:
+            PostListContent(user: user, mode: .drafts) { draft in
+                selectedDraft = draft
+            }
+        case .published:
+            publishedGrid
+        case .bookmarks:
+            bookmarkGrid
         }
     }
 
@@ -141,16 +177,20 @@ struct ProfileView: View {
     }
 
     private var modeToggle: some View {
-        HStack(spacing: 8) {
-            toggleButton("Publish (\(user.loadPublished().count))", mode: .published)
-            toggleButton("Drafts (\(user.loadDrafts().count))", mode: .drafts)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                toggleButton("Publish (\(user.loadPublished().count))", tab: .published)
+                toggleButton("Drafts (\(user.loadDrafts().count))", tab: .drafts)
+                toggleButton("Bookmark (\(bookmarkedNotes.count))", tab: .bookmarks)
+            }
+            .padding(.horizontal, 1) // keeps the hardCard-less pill strokes from clipping at the scroll edges
         }
     }
 
-    private func toggleButton(_ title: String, mode: PostListMode) -> some View {
-        let isSelected = selectedMode == mode
+    private func toggleButton(_ title: String, tab: ProfileTab) -> some View {
+        let isSelected = selectedTab == tab
         return Button {
-            selectedMode = mode
+            selectedTab = tab
         } label: {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
@@ -162,6 +202,134 @@ struct ProfileView: View {
                         .fill(isSelected ? Theme.ink : Theme.card)
                         .overlay(Capsule().stroke(Theme.ink, lineWidth: 1.5))
                 )
+        }
+    }
+
+    // MARK: - Month filter (Published)
+
+    private static let monthKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL yyyy"
+        return formatter
+    }()
+
+    /// The first-of-month date for each distinct month a post was
+    /// published in, most recent first — used both as the dropdown's
+    /// options and as the grouping key for `publishedGrid`.
+    private var availableMonths: [Date] {
+        let calendar = Calendar.current
+        let starts = Set(user.loadPublished().map { post in
+            let date = post.publishedAt ?? post.createdAt
+            let comps = calendar.dateComponents([.year, .month], from: date)
+            return calendar.date(from: comps) ?? date
+        })
+        return starts.sorted(by: >)
+    }
+
+    private var monthFilter: some View {
+        HStack(spacing: 10) {
+            Text("Filter by:")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.inkMuted)
+
+            Menu {
+                Button("All") { selectedMonth = nil }
+                ForEach(availableMonths, id: \.self) { month in
+                    Button(Self.monthKeyFormatter.string(from: month)) {
+                        selectedMonth = month
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedMonth.map(Self.monthKeyFormatter.string(from:)) ?? "All")
+                        .font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Theme.card))
+                .overlay(Capsule().stroke(Theme.ink, lineWidth: 1.5))
+            }
+            Spacer()
+        }
+    }
+
+    // MARK: - Published grid
+
+    private var filteredPublished: [Post] {
+        let posts = user.loadPublished()
+        guard let selectedMonth else { return posts }
+        let calendar = Calendar.current
+        return posts.filter { post in
+            calendar.isDate(post.publishedAt ?? post.createdAt, equalTo: selectedMonth, toGranularity: .month)
+        }
+    }
+
+    private var publishedGrid: some View {
+        Group {
+            if filteredPublished.isEmpty {
+                Text(user.loadPublished().isEmpty ? "Nothing published yet." : "Nothing published in this month.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.inkMuted)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 18) {
+                    ForEach(Array(filteredPublished.enumerated()), id: \.element.uniqueID) { index, post in
+                        Button {
+                            readingItem = .post(post)
+                        } label: {
+                            StickyNoteCard(
+                                title: post.promptFullText,
+                                date: post.publishedAt ?? post.createdAt,
+                                bodyPreview: post.textContent,
+                                emotions: post.promptEmotions,
+                                color: stickyNoteColors[index % stickyNoteColors.count],
+                                rotation: stickyNoteRotation(for: index)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Bookmark grid
+
+    private var bookmarkedNotes: [SampleNote] {
+        SampleNoteBank.all.filter { user.isSampleNoteBookmarked($0.id) }
+    }
+
+    private var bookmarkGrid: some View {
+        Group {
+            if bookmarkedNotes.isEmpty {
+                Text("No bookmarks yet — tap the bookmark icon on any note in Read to save it here.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.inkMuted)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 18) {
+                    ForEach(Array(bookmarkedNotes.enumerated()), id: \.element.id) { index, note in
+                        Button {
+                            readingItem = .sample(note)
+                        } label: {
+                            StickyNoteCard(
+                                title: note.prompt,
+                                date: note.createdAt,
+                                bodyPreview: note.body,
+                                emotions: note.emotions,
+                                color: stickyNoteColors[index % stickyNoteColors.count],
+                                rotation: stickyNoteRotation(for: index)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
     }
 }
