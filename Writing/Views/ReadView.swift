@@ -54,7 +54,7 @@ private struct BoardItem: Identifiable {
 
 private enum DummyContent {
     static let pool: [(body: String, promptIndex: Int)] = [
-        ("The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour.", 2),
+        ("The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour. The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour.", 2),
         ("Sometimes I wonder if the stars remember us the way we remember them — distant, bright, full of stories we'll never fully understand.", 1),
         ("She left the letter on the kitchen table, folded twice, smelling faintly of lavender. He didn't open it until spring.", 2),
         ("The old bookshop on 5th street closed today. Twenty years of dog-eared pages and whispered recommendations, gone.", 3),
@@ -276,7 +276,7 @@ struct ReadView: View {
         HStack {
             RoundBackButton { route = .home }
             Spacer()
-            Text("Mading")
+            Text("Board")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(Theme.ink)
             Spacer()
@@ -437,7 +437,7 @@ private struct StickyNoteView: View {
             Spacer(minLength: 0)
 
             Text("\u{201C}\(entry.prompt)\u{201D}")
-                .font(.system(size: 13, weight: .medium, design: .serif))
+                .font(.custom("WaitingfortheSunrise", size: 13))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(4)
                 .multilineTextAlignment(.center)
@@ -481,14 +481,28 @@ private struct StickyNoteView: View {
     }
 }
 
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 private struct NoteDetailView: View {
     let entry: WritingEntry
     @EnvironmentObject var store: AppStore
     let onClose: () -> Void
     let onReadAnother: () -> Void
 
+    @State private var scrollOffset: CGFloat = 0
+    private let scrollThreshold: CGFloat = 40
+
     private var hasUnread: Bool {
         store.unreadPublishedEntries.contains { $0.id != entry.id }
+    }
+
+    private var showTopButton: Bool {
+        scrollOffset > -scrollThreshold
     }
 
     var body: some View {
@@ -521,17 +535,40 @@ private struct NoteDetailView: View {
                     }
                 }
 
-                readAnotherButton
-
-                ScrollView {
-                    Text(entry.body)
-                        .font(.system(size: 18, design: .serif))
-                        .foregroundStyle(Theme.ink)
-                        .lineSpacing(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if showTopButton {
+                    readAnotherButton
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                readAnotherButton
+                ScrollView {
+                    ZStack(alignment: .top) {
+                        GeometryReader { proxy in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetKey.self,
+                                    value: proxy.frame(in: .named("noteScroll")).minY
+                                )
+                        }
+                        .frame(height: 0)
+
+                        Text(entry.body)
+                            .font(.custom("WaitingfortheSunrise", size: 24))
+                            .foregroundStyle(Theme.ink)
+                            .lineSpacing(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .coordinateSpace(name: "noteScroll")
+                .onPreferenceChange(ScrollOffsetKey.self) { value in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollOffset = value
+                    }
+                }
+
+                if !showTopButton {
+                    readAnotherButton
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
             .padding(24)
         }
