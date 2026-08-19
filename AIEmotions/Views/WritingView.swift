@@ -30,6 +30,7 @@ import UIKit
 struct WritingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.writingService) private var writingService
     @Bindable var user: User
     private let draft: Post?
     @State private var promptManager = PromptManager()
@@ -37,6 +38,11 @@ struct WritingView: View {
     @State private var draftText: String
     @State private var showConfirm = false
     @State private var showMinimumLengthError = false
+    @State private var pendingPost: Post?
+    @State private var pendingRequest: PublishWritingRequest?
+    @State private var isPublishing = false
+    @State private var publishingError: String?
+    @State private var canRetryPublishing = true
 
     @State private var showScanner = false
     @State private var isRecognizingText = false
@@ -201,6 +207,7 @@ struct WritingView: View {
             .overlay(
                 TextEditor(text: $draftText)
                     .focused($isInputActive)
+                    .disabled(isPublishing)
                     .font(.system(size: 16))
                     .foregroundStyle(Theme.ink)
                     .scrollContentBackground(.hidden)
@@ -235,7 +242,7 @@ struct WritingView: View {
                 .padding(.vertical, 10)
         }
         .hardCard(cornerRadius: 5, shadowOffset: 3)
-        .disabled(isRecognizingText)
+        .disabled(isRecognizingText || isPublishing)
     }
 
     private var tipBanner: some View {
@@ -274,12 +281,16 @@ struct WritingView: View {
                 .padding(.vertical, 16)
         }
         .hardCard()
+        .disabled(isPublishing)
     }
 
     private func confirmOverlay(prompt: PromptData) -> some View {
         ZStack {
             Theme.overlay.ignoresSafeArea()
-                .onTapGesture { showConfirm = false }
+                .onTapGesture {
+                    guard !isPublishing, pendingRequest == nil else { return }
+                    showConfirm = false
+                }
 
             VStack(spacing: 16) {
                 Text(draft == nil ? "Save for later or publish now?" : "Keep editing later or publish now?")
@@ -292,28 +303,44 @@ struct WritingView: View {
                     .foregroundStyle(Theme.inkMuted)
                     .multilineTextAlignment(.center)
 
+                if isPublishing {
+                    ProgressView("Publishing…")
+                        .tint(Theme.ink)
+                        .foregroundStyle(Theme.ink)
+                }
+
+                if let publishingError {
+                    Text(publishingError)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.error)
+                        .multilineTextAlignment(.center)
+                        .accessibilityLabel("Publishing failed. \(publishingError)")
+                }
+
                 HStack(spacing: 12) {
                     Button {
                         saveDraft(prompt: prompt)
                     } label: {
-                        Text("Save draft")
+                        Text(pendingPost == nil ? "Save draft" : "Keep draft")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Theme.ink)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
                     .hardCard(cornerRadius: 24, shadowOffset: 3)
+                    .disabled(isPublishing)
 
                     Button {
                         publish(prompt: prompt)
                     } label: {
-                        Text("Publish")
+                        Text(pendingRequest == nil ? "Publish" : "Retry publish")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Theme.card)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                     }
                     .hardCard(fill: Theme.ink, cornerRadius: 24, shadowOffset: 3)
+                    .disabled(isPublishing || !canRetryPublishing)
                 }
             }
             .padding(22)
@@ -325,7 +352,9 @@ struct WritingView: View {
     // MARK: - Actions
 
     private func saveDraft(prompt: PromptData) {
-        if let draft {
+        if let pendingPost {
+            pendingPost.update(text: draftText, photoData: pendingPost.attachedImageData)
+        } else if let draft {
             draft.update(text: draftText, photoData: draft.attachedImageData)
         } else {
             Post.saveAsDraft(text: draftText, prompt: prompt, photoData: nil, for: user, in: modelContext)
@@ -334,14 +363,65 @@ struct WritingView: View {
     }
 
     private func publish(prompt: PromptData) {
-        if let draft {
-            draft.update(text: draftText, photoData: draft.attachedImageData)
-            draft.publish()
+        guard !isPublishing else { return }
+
+        let post: Post
+        let request: PublishWritingRequest
+
+        if let pendingPost, let pendingRequest {
+            post = pendingPost
+            request = pendingRequest
         } else {
-            let post = Post.saveAsDraft(text: draftText, prompt: prompt, photoData: nil, for: user, in: modelContext)
-            post.publish()
+            if let draft {
+                draft.update(text: draftText, photoData: draft.attachedImageData)
+                post = draft
+            } else {
+                post = Post.saveAsDraft(
+                    text: draftText,
+                    prompt: prompt,
+                    photoData: nil,
+                    for: user,
+                    in: modelContext
+                )
+            }
+
+            request = PublishWritingRequest(
+                clientWritingID: post.uniqueID,
+                title: nil,
+                fullText: post.textContent,
+                prompt: .init(
+                    verb: post.promptVerb,
+                    fullText: post.promptFullText,
+                    emotions: post.promptEmotions
+                )
+            )
+            pendingPost = post
+            pendingRequest = request
         }
-        dismiss()
+
+        isPublishing = true
+        publishingError = nil
+        canRetryPublishing = true
+
+        Task {
+            do {
+                let response = try await writingService.publish(request, deviceID: post.deviceID)
+                guard response.clientWritingID == post.uniqueID else {
+                    throw WritingServiceError.invalidResponse
+                }
+                post.remoteID = response.id
+                post.publish()
+                dismiss()
+            } catch let error as WritingServiceError {
+                publishingError = error.localizedDescription
+                canRetryPublishing = error.canRetry
+                isPublishing = false
+            } catch {
+                publishingError = "Your writing couldn't be published. Please try again."
+                canRetryPublishing = true
+                isPublishing = false
+            }
+        }
     }
 
     private func recognizeText(from images: [UIImage]) {

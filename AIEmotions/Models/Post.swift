@@ -27,6 +27,7 @@ final class Post {
     var isPublished: Bool
     var createdAt: Date
     var publishedAt: Date?
+    var remoteID: String?
 
     var author: User?
 
@@ -47,6 +48,7 @@ final class Post {
         self.isPublished = isPublished
         self.createdAt = .now
         self.publishedAt = isPublished ? .now : nil
+        self.remoteID = nil
     }
 
     /// The emotion tags carried by the prompt this post was written from.
