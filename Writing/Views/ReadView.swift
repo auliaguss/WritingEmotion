@@ -17,22 +17,22 @@ private struct NoteLayout {
     let colorIndex: Int
 }
 
-private func layoutsForEntries(count: Int, columns: Int = 3) -> [NoteLayout] {
+private func layoutsForEntries(count: Int, rows: Int = 3) -> [NoteLayout] {
     let noteW: CGFloat = 180
     let noteH: CGFloat = 200
-    let spacingX: CGFloat = 30
-    let spacingY: CGFloat = 40
+    let spacingX: CGFloat = 80
+    let spacingY: CGFloat = 70
     let startX: CGFloat = 40
     let startY: CGFloat = 40
 
     return (0..<count).map { i in
-        let col = i % columns
-        let row = i / columns
+        let row = i % rows
+        let col = i / rows
         let baseX = startX + CGFloat(col) * (noteW + spacingX) + noteW / 2
         let baseY = startY + CGFloat(row) * (noteH + spacingY) + noteH / 2
-        let jitterX = CGFloat((i * 37 + 13) % 31) - 15
-        let jitterY = CGFloat((i * 23 + 7) % 25) - 12
-        let rotation = Double((i * 47 + 3) % 21) - 10
+        let jitterX = CGFloat((i * 37 + 13) % 15) - 7
+        let jitterY = CGFloat((i * 23 + 7) % 13) - 6
+        let rotation = Double((i * 47 + 3) % 11) - 5
         let colorIdx = i % noteColors.count
         return NoteLayout(
             position: CGPoint(x: baseX + jitterX, y: baseY + jitterY),
@@ -53,6 +53,7 @@ struct ReadView: View {
     @State private var lastScale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var isDragging = false
 
     private let minScale: CGFloat = 0.5
     private let maxScale: CGFloat = 3.0
@@ -96,12 +97,34 @@ struct ReadView: View {
                 let dummyData: [(body: String, prompt: String)] = [
                     ("The rain tapped against the window like tiny fingers asking to come in. I sat with my tea, watching the world blur into watercolour.", WritingPrompts.all[2]),
                     ("Sometimes I wonder if the stars remember us the way we remember them — distant, bright, full of stories we'll never fully understand.", WritingPrompts.all[1]),
-                    ("She left the letter on the kitchen table, folded twice, smelling faintly of lavender. He didn't open it until spring.", "The apology you never got."),
-                    ("The old bookshop on 5th street closed today. Twenty years of dog-eared pages and whispered recommendations, gone.", WritingPrompts.all[2]),
-                    ("I learned to swim in words before I learned to swim in water. The page was always kinder than the ocean.", WritingPrompts.all[3]),
-                    ("There's a kind of silence that only exists at 3 AM — not empty, but full, like a breath held too long.", WritingPrompts.all[4]),
+                    ("She left the letter on the kitchen table, folded twice, smelling faintly of lavender. He didn't open it until spring.", WritingPrompts.all[2]),
+                    ("The old bookshop on 5th street closed today. Twenty years of dog-eared pages and whispered recommendations, gone.", WritingPrompts.all[3]),
+                    ("I learned to swim in words before I learned to swim in water. The page was always kinder than the ocean.", WritingPrompts.all[4]),
+                    ("There's a kind of silence that only exists at 3 AM — not empty, but full, like a breath held too long.", WritingPrompts.all[5]),
                     ("My grandmother's hands told stories her mouth never did. Each wrinkle was a chapter, each scar a plot twist.", WritingPrompts.all[0]),
-                    ("We built a fort out of cardboard boxes and called it a castle. For one afternoon, we were kings of something real.", WritingPrompts.all[5]),
+                    ("We built a fort out of cardboard boxes and called it a castle. For one afternoon, we were kings of something real.", WritingPrompts.all[1]),
+                    ("The coffee shop where we first met turned into a parking lot. Progress, they called it. I called it erasure.", WritingPrompts.all[2]),
+                    ("I keep a jar of sea glass on my desk. Each piece was sharp once, before the ocean taught it patience.", WritingPrompts.all[3]),
+                    ("He played the same song every morning. Not because he loved it, but because she used to hum it in her sleep.", WritingPrompts.all[0]),
+                    ("The dictionary defines home as a place of residence. It says nothing about the ache of returning to one that no longer fits.", WritingPrompts.all[0]),
+                    ("I found a photograph of us laughing, and I couldn't remember what was so funny. That terrified me more than forgetting your face.", WritingPrompts.all[4]),
+                    ("The taxi driver told me his whole life story in twelve blocks. Somewhere between 3rd and 7th Avenue, I forgot my own sadness.", WritingPrompts.all[5]),
+                    ("She painted sunsets the way other people breathe — effortlessly, endlessly, as if the sky owed her its palette.", WritingPrompts.all[1]),
+                    ("There's a tree in my old backyard that still has my initials carved into it. I wonder if it remembers the boy who held the knife.", WritingPrompts.all[0]),
+                    ("The last voicemail she left me is still on my phone. I can't listen to it, but I'll never delete it.", WritingPrompts.all[3]),
+                    ("We used to measure summer by the height of the sunflowers. This year, nobody planted any.", WritingPrompts.all[4]),
+                    ("I wrote your name in the sand and watched the tide take it. The ocean doesn't care about permanence either.", WritingPrompts.all[1]),
+                    ("The library smelled of dust and possibility. Every shelf was a door, every book a key to somewhere I'd never been.", WritingPrompts.all[5]),
+                    ("My father's watch stopped the day he did. I wear it anyway — a reminder that some things outlast the hands that wound them.", WritingPrompts.all[0]),
+                    ("The streetlights came on one by one like tired eyes opening. The city never truly sleeps, it just pretends.", WritingPrompts.all[2]),
+                    ("I pressed a wildflower between the pages of your favourite book. You'll find it someday, and maybe you'll think of me.", WritingPrompts.all[1]),
+                    ("The train pulled away and I didn't wave. Sometimes goodbye is just standing still while everything else moves.", WritingPrompts.all[3]),
+                    ("She collected words the way magpies collect shiny things — greedily, lovingly, with no regard for what's practical.", WritingPrompts.all[5]),
+                    ("The kitchen smelled of cinnamon and regret. I was baking her recipe, but it would never taste the same.", WritingPrompts.all[0]),
+                    ("I counted the cracks in the ceiling and imagined they were rivers on a map leading somewhere I'd never go.", WritingPrompts.all[4]),
+                    ("The old piano in the corner hadn't been tuned in years, but it still knew how to hold a melody hostage.", WritingPrompts.all[2]),
+                    ("We promised to write letters, real ones, with stamps and everything. The first one arrived three months late. The second one never came.", WritingPrompts.all[1]),
+                    ("The fog rolled in like a secret, hiding the harbour and muffling the horns. For one hour, the world was only as big as my front porch.", WritingPrompts.all[5]),
                 ]
                 for (i, item) in dummyData.enumerated() {
                     store.entries.append(
@@ -186,7 +209,8 @@ struct ReadView: View {
                         color: noteColors[layout.colorIndex],
                         rotation: layout.rotation,
                         isBookmarked: store.isBookmarked(entry),
-                        isRead: store.isRead(entry)
+                        isRead: store.isRead(entry),
+                        isDragging: $isDragging
                     ) {
                         openNote(entry)
                     }
@@ -196,8 +220,8 @@ struct ReadView: View {
             .frame(width: canvasW, height: canvasH)
             .scaleEffect(scale, anchor: .topLeading)
             .offset(offset)
-            .gesture(dragGesture)
-            .gesture(magnifyGesture)
+            .simultaneousGesture(dragGesture)
+            .simultaneousGesture(magnifyGesture)
             .clipped()
         }
         .padding(.top, 60)
@@ -232,8 +256,9 @@ struct ReadView: View {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture()
+        DragGesture(minimumDistance: 6)
             .onChanged { value in
+                isDragging = true
                 offset = CGSize(
                     width: lastOffset.width + value.translation.width,
                     height: lastOffset.height + value.translation.height
@@ -241,17 +266,28 @@ struct ReadView: View {
             }
             .onEnded { _ in
                 lastOffset = offset
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    isDragging = false
+                }
             }
     }
 
     private var magnifyGesture: some Gesture {
         MagnifyGesture()
             .onChanged { value in
+                isDragging = true
                 let newScale = lastScale * value.magnification
-                scale = min(max(newScale, minScale), maxScale)
+                withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8)) {
+                    scale = min(max(newScale, minScale), maxScale)
+                }
             }
             .onEnded { _ in
-                lastScale = scale
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    lastScale = scale
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    isDragging = false
+                }
             }
     }
 }
@@ -262,63 +298,66 @@ private struct StickyNoteView: View {
     let rotation: Double
     var isBookmarked: Bool = false
     var isRead: Bool = false
+    @Binding var isDragging: Bool
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 8) {
-                ZStack {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.accent)
-                        .rotationEffect(.degrees(-45))
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.accent)
+                    .rotationEffect(.degrees(-45))
 
-                    HStack(spacing: 4) {
-                        if isRead {
-                            Image(systemName: "eye.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Theme.ink.opacity(0.45))
-                        }
-                        if isBookmarked {
-                            Image(systemName: "bookmark.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.accent)
-                        }
-                        Spacer()
+                HStack(spacing: 4) {
+                    if isRead {
+                        Image(systemName: "eye.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.ink.opacity(0.45))
                     }
+                    if isBookmarked {
+                        Image(systemName: "bookmark.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    Spacer()
                 }
-
-                Spacer(minLength: 0)
-                
-                Text("\u{201C}\(entry.prompt)\u{201D}")
-                    .font(.system(size: 13, weight: .medium, design: .serif))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(4)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                
-                Spacer(minLength: 0)
-
-                Text(entry.dateLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Theme.ink.opacity(0.5))
-                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .padding(14)
-            .frame(width: 170, height: 190)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.black.opacity(0.1))
-                        .offset(x: 3, y: 4)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(isRead ? color.opacity(0.55) : color)
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Theme.ink.opacity(0.15), lineWidth: 0.5)
-                }
-            )
+
+            Spacer(minLength: 0)
+            
+            Text("\u{201C}\(entry.prompt)\u{201D}")
+                .font(.system(size: 13, weight: .medium, design: .serif))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(4)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            Spacer(minLength: 0)
+
+            Text(entry.dateLabel)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Theme.ink.opacity(0.5))
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .frame(width: 170, height: 190)
+        .background(
+            ZStack {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.black.opacity(0.1))
+                    .offset(x: 3, y: 4)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isRead ? color.opacity(0.55) : color)
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(Theme.ink.opacity(0.15), lineWidth: 0.5)
+            }
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !isDragging else { return }
+            onTap()
+        }
         .rotationEffect(.degrees(rotation))
     }
 }
@@ -416,6 +455,28 @@ private struct NoteDetailView: View {
         "There's a kind of silence that only exists at 3 AM — not empty, but full, like a breath held too long.",
         "My grandmother's hands told stories her mouth never did. Each wrinkle was a chapter, each scar a plot twist.",
         "We built a fort out of cardboard boxes and called it a castle. For one afternoon, we were kings of something real.",
+        "The coffee shop where we first met turned into a parking lot. Progress, they called it. I called it erasure.",
+        "I keep a jar of sea glass on my desk. Each piece was sharp once, before the ocean taught it patience.",
+        "He played the same song every morning. Not because he loved it, but because she used to hum it in her sleep.",
+        "The dictionary defines home as a place of residence. It says nothing about the ache of returning to one that no longer fits.",
+        "I found a photograph of us laughing, and I couldn't remember what was so funny. That terrified me more than forgetting your face.",
+        "The taxi driver told me his whole life story in twelve blocks. Somewhere between 3rd and 7th Avenue, I forgot my own sadness.",
+        "She painted sunsets the way other people breathe — effortlessly, endlessly, as if the sky owed her its palette.",
+        "There's a tree in my old backyard that still has my initials carved into it. I wonder if it remembers the boy who held the knife.",
+        "The last voicemail she left me is still on my phone. I can't listen to it, but I'll never delete it.",
+        "We used to measure summer by the height of the sunflowers. This year, nobody planted any.",
+        "I wrote your name in the sand and watched the tide take it. The ocean doesn't care about permanence either.",
+        "The library smelled of dust and possibility. Every shelf was a door, every book a key to somewhere I'd never been.",
+        "My father's watch stopped the day he did. I wear it anyway — a reminder that some things outlast the hands that wound them.",
+        "The streetlights came on one by one like tired eyes opening. The city never truly sleeps, it just pretends.",
+        "I pressed a wildflower between the pages of your favourite book. You'll find it someday, and maybe you'll think of me.",
+        "The train pulled away and I didn't wave. Sometimes goodbye is just standing still while everything else moves.",
+        "She collected words the way magpies collect shiny things — greedily, lovingly, with no regard for what's practical.",
+        "The kitchen smelled of cinnamon and regret. I was baking her recipe, but it would never taste the same.",
+        "I counted the cracks in the ceiling and imagined they were rivers on a map leading somewhere I'd never go.",
+        "The old piano in the corner hadn't been tuned in years, but it still knew how to hold a melody hostage.",
+        "We promised to write letters, real ones, with stamps and everything. The first one arrived three months late. The second one never came.",
+        "The fog rolled in like a secret, hiding the harbour and muffling the horns. For one hour, the world was only as big as my front porch.",
     ]
     for (i, text) in dummyTexts.enumerated() {
         store.entries.append(
