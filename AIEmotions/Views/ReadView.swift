@@ -75,6 +75,8 @@ private struct BoardItem: Identifiable {
 
 struct ReadView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @Bindable var user: User
 
     @State private var selectedNote: SampleNote?
@@ -92,6 +94,10 @@ struct ReadView: View {
     private let minScale: CGFloat = 0.5
     private let maxScale: CGFloat = 3.0
 
+    private var motionStyle: MotionStyle {
+        MotionStyle.selected(from: motionStyleValue)
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             Theme.background.ignoresSafeArea()
@@ -105,20 +111,23 @@ struct ReadView: View {
             }
 
             if showDetail, let note = selectedNote {
+                Theme.overlay
+                    .ignoresSafeArea()
+                    .onTapGesture { closeDetail() }
+                    .transition(.opacity)
+                    .zIndex(9)
+
                 NoteDetailView(
                     note: note,
                     user: user,
-                    onClose: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showDetail = false
-                            selectedNote = nil
-                        }
-                    },
-                    onReadAnother: {
-                        readAnotherNote()
-                    }
+                    motionStyle: motionStyle,
+                    onClose: closeDetail,
+                    onReadAnother: readAnotherNote
                 )
-                .transition(.move(edge: .trailing))
+                .padding(.horizontal, 16)
+                .padding(.top, 66)
+                .padding(.bottom, 16)
+                .transition(motionStyle.panelTransition(reduceMotion: reduceMotion))
                 .zIndex(10)
             }
         }
@@ -211,8 +220,18 @@ struct ReadView: View {
     private func openNote(_ note: SampleNote) {
         user.markSampleNoteRead(note.id)
         selectedNote = note
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
             showDetail = true
+        }
+    }
+
+    private func closeDetail() {
+        withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
+            showDetail = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.01 : motionStyle.dismissalDelay)) {
+            guard !showDetail else { return }
+            selectedNote = nil
         }
     }
 
@@ -220,7 +239,7 @@ struct ReadView: View {
         let candidates = SampleNoteBank.all.filter { !user.isSampleNoteRead($0.id) && $0.id != selectedNote?.id }
         guard let next = candidates.randomElement() else { return }
         user.markSampleNoteRead(next.id)
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(motionStyle.replacementAnimation(reduceMotion: reduceMotion)) {
             selectedNote = next
         }
     }
@@ -441,8 +460,10 @@ private struct StickyNoteView: View {
 }
 
 private struct NoteDetailView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let note: SampleNote
     @Bindable var user: User
+    let motionStyle: MotionStyle
     let onClose: () -> Void
     let onReadAnother: () -> Void
 
@@ -457,10 +478,7 @@ private struct NoteDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            Theme.background.ignoresSafeArea()
-
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text(Self.dateFormatter.string(from: note.createdAt))
                         .font(.system(size: 14, weight: .medium))
@@ -494,12 +512,16 @@ private struct NoteDetailView: View {
                         .foregroundStyle(Theme.ink)
                         .lineSpacing(6)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .id(note.id)
+                        .transition(motionStyle.contentTransition(reduceMotion: reduceMotion))
                 }
 
                 readAnotherButton
-            }
-            .padding(24)
         }
+        .padding(24)
+        .background(RoundedRectangle(cornerRadius: 22).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.ink, lineWidth: 2))
+        .shadow(color: Theme.ink.opacity(0.28), radius: 0, x: 7, y: 8)
     }
 
     @ViewBuilder

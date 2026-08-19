@@ -30,6 +30,8 @@ import UIKit
 struct WritingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @Bindable var user: User
     private let draft: Post?
     @State private var promptManager = PromptManager()
@@ -37,6 +39,7 @@ struct WritingView: View {
     @State private var draftText: String
     @State private var showConfirm = false
     @State private var showMinimumLengthError = false
+    @State private var contentVisible = false
 
     @State private var showScanner = false
     @State private var isRecognizingText = false
@@ -75,6 +78,10 @@ struct WritingView: View {
         user.isEmotionProfileUnlocked && user.hasExhaustedTodaysShuffles && !user.hasUsedDiscoveryToday
     }
 
+    private var motionStyle: MotionStyle {
+        MotionStyle.selected(from: motionStyleValue)
+    }
+
     @FocusState private var isInputActive: Bool
 
     var body: some View {
@@ -99,6 +106,10 @@ struct WritingView: View {
                         }
                     }
                     .padding()
+                    .opacity(contentVisible ? 1 : 0)
+                    .scaleEffect(contentVisible || reduceMotion ? 1 : (motionStyle == .ink ? 0.96 : 0.985))
+                    .offset(y: contentVisible || reduceMotion ? 0 : (motionStyle == .quiet ? 14 : 26))
+                    .rotationEffect(.degrees(contentVisible || reduceMotion || motionStyle != .paperLift ? 0 : -0.6))
                 }
                 .onTapGesture {
                     isInputActive = false
@@ -106,6 +117,7 @@ struct WritingView: View {
 
                 if showConfirm, let currentPrompt {
                     confirmOverlay(prompt: currentPrompt)
+                        .transition(.opacity)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -125,6 +137,17 @@ struct WritingView: View {
             .task {
                 guard draft == nil else { return }
                 await promptManager.generateDailyPromptsIfNeeded(for: user)
+            }
+            .onAppear {
+                withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
+                    contentVisible = true
+                }
+            }
+            .onChange(of: meetsMinimumLength) { _, meetsMinimum in
+                guard meetsMinimum, showMinimumLengthError else { return }
+                withAnimation(motionStyle.replacementAnimation(reduceMotion: reduceMotion)) {
+                    showMinimumLengthError = false
+                }
             }
         }
     }
@@ -255,16 +278,20 @@ struct WritingView: View {
                 Text("Keep writing! You haven't reached the minimum yet.")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.error)
+                    .transition(motionStyle.contentTransition(reduceMotion: reduceMotion))
             }
         }
     }
 
     private var doneButton: some View {
         Button {
-            if meetsMinimumLength {
-                showConfirm = true
-            } else {
-                showMinimumLengthError = true
+            withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
+                if meetsMinimumLength {
+                    isInputActive = false
+                    showConfirm = true
+                } else {
+                    showMinimumLengthError = true
+                }
             }
         } label: {
             Text("Done")
@@ -279,7 +306,12 @@ struct WritingView: View {
     private func confirmOverlay(prompt: PromptData) -> some View {
         ZStack {
             Theme.overlay.ignoresSafeArea()
-                .onTapGesture { showConfirm = false }
+                .transition(.opacity)
+                .onTapGesture {
+                    withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
+                        showConfirm = false
+                    }
+                }
 
             VStack(spacing: 16) {
                 Text(draft == nil ? "Save for later or publish now?" : "Keep editing later or publish now?")
@@ -319,6 +351,7 @@ struct WritingView: View {
             .padding(22)
             .frame(maxWidth: 320)
             .hardCard(cornerRadius: 22)
+            .transition(motionStyle.panelTransition(reduceMotion: reduceMotion))
         }
     }
 

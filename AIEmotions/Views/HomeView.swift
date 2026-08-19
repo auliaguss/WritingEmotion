@@ -16,9 +16,16 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @Bindable var user: User
     @State private var showWriting = false
     @State private var animateCaption = false
+    @State private var showsCompletedDay = false
+
+    private var motionStyle: MotionStyle {
+        MotionStyle.selected(from: motionStyleValue)
+    }
     
     var body: some View {
         NavigationStack {
@@ -30,21 +37,22 @@ struct HomeView: View {
                         actionButton(
                             title: "Write",
                             icon: "pencil",
-                            caption: user.hasWrittenToday
+                            caption: showsCompletedDay
                                 ? "Come back tomorrow to write something new!"
                                 : "Start writing and see where it takes you!",
-                            disabled: user.hasWrittenToday,
+                            disabled: showsCompletedDay,
                             animateCaption: animateCaption // Pass the state here!
                         ) {
                             showWriting = true
                         }
 
-                        if user.hasWrittenToday {
+                        if showsCompletedDay {
                             ScribbleOverlay()
                                 .frame(height: 68)
                                 .padding(.trailing, 6)
                                 .padding(.bottom, 34)
-                                
+                                .transition(motionStyle.revealTransition(reduceMotion: reduceMotion))
+
                             // The Invisible Tap Catcher!
                             Color.black.opacity(0.001)
                                 .contentShape(Rectangle())
@@ -54,7 +62,7 @@ struct HomeView: View {
                         }
                     }
 
-                    if user.hasWrittenToday {
+                    if showsCompletedDay {
                         actionButton(
                             title: "Read",
                             icon: "book.fill",
@@ -62,11 +70,11 @@ struct HomeView: View {
                         ) {
                             readDestinationTrigger = true
                         }
+                        .transition(motionStyle.revealTransition(reduceMotion: reduceMotion))
                     }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 90)
-                .animation(.easeInOut, value: user.hasWrittenToday)
 
                 HStack {
                     #if DEBUG
@@ -102,6 +110,24 @@ struct HomeView: View {
             }
             .fullScreenCover(isPresented: $showWriting) {
                 WritingView(user: user)
+            }
+            .onAppear {
+                showsCompletedDay = user.hasWrittenToday
+            }
+            .onChange(of: showWriting) { _, isPresented in
+                guard !isPresented else { return }
+                withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
+                    showsCompletedDay = user.hasWrittenToday
+                }
+            }
+            .onChange(of: user.hasWrittenToday) { _, hasWrittenToday in
+                guard !showWriting else { return }
+                withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
+                    showsCompletedDay = hasWrittenToday
+                    if !hasWrittenToday {
+                        animateCaption = false
+                    }
+                }
             }
         }
     }
@@ -139,9 +165,9 @@ struct HomeView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 // 2. Add your custom animation modifiers right here!
-                .scaleEffect(animateCaption ? 1.2 : 1)
-                .shadow(color: .black.opacity(0.5), radius: animateCaption ? 10 : 0)
-                .animation(.spring(response: 0.5, dampingFraction: 0.3), value: animateCaption)
+                .scaleEffect(animateCaption && !reduceMotion ? 1.2 : 1)
+                .shadow(color: .black.opacity(0.5), radius: animateCaption && !reduceMotion ? 10 : 0)
+                .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.3), value: animateCaption)
         }
     }
 }
