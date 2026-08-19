@@ -39,6 +39,13 @@ struct PostListContent: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var user: User
     let mode: PostListMode
+    var onSelectDraft: ((Post) -> Void)?
+
+    init(user: User, mode: PostListMode, onSelectDraft: ((Post) -> Void)? = nil) {
+        self.user = user
+        self.mode = mode
+        self.onSelectDraft = onSelectDraft
+    }
 
     private var posts: [Post] {
         mode == .drafts ? user.loadDrafts() : user.loadPublished()
@@ -55,10 +62,23 @@ struct PostListContent: View {
             } else {
                 List {
                     ForEach(posts) { post in
-                        PostRow(post: post)
+                        if mode == .drafts, let onSelectDraft {
+                            Button {
+                                onSelectDraft(post)
+                            } label: {
+                                PostRow(post: post, showsEditIndicator: true)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Opens this draft for editing")
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                        } else {
+                            PostRow(post: post)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                        }
                     }
                     .onDelete { offsets in
                         if mode == .drafts {
@@ -114,6 +134,7 @@ struct PostListView: View {
 
 struct PostRow: View {
     let post: Post
+    var showsEditIndicator = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -126,6 +147,10 @@ struct PostRow: View {
                     Text(date, style: .date)
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.inkMuted)
+                } else if showsEditIndicator {
+                    Label("Edit", systemImage: "pencil")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
                 }
             }
 

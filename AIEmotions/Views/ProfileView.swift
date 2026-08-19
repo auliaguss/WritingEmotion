@@ -24,6 +24,7 @@ struct ProfileView: View {
     @State private var draftBio: String = ""
     @State private var isEditing = false
     @State private var selectedMode: PostListMode = .published
+    @State private var selectedDraft: Post?
 
     var body: some View {
         ZStack {
@@ -91,14 +92,19 @@ struct ProfileView: View {
 
                     modeToggle
 
-                    PostListContent(user: user, mode: selectedMode)
-                        .frame(minHeight: 200)
+                    PostListContent(user: user, mode: selectedMode) { draft in
+                        selectedDraft = draft
+                    }
+                    .frame(minHeight: 200)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .fullScreenCover(item: $selectedDraft) { draft in
+            WritingView(user: user, draft: draft)
+        }
     }
 
     private var header: some View {
