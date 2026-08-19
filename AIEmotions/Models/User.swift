@@ -233,4 +233,37 @@ final class User {
         lastDiscoveryUseDate = nil
     }
     #endif
+
+    // MARK: - Read board (sample notes)
+
+    // Bookmark/read state for the Read screen's corkboard of sample
+    // "other writers'" notes (see SampleNoteBank — there's still no
+    // backend, so these are fixed placeholder content, not real other
+    // users). Keyed by SampleNote.id, which is a stable index into the
+    // fixed pool rather than a freshly-generated identifier, so a
+    // bookmark keeps pointing at the same note even after the board
+    // reshuffles to a different random batch.
+    var bookmarkedSampleNoteIDs: [Int] = []
+    var readSampleNoteIDs: [Int] = []
+
+    func isSampleNoteBookmarked(_ id: Int) -> Bool {
+        bookmarkedSampleNoteIDs.contains(id)
+    }
+
+    func toggleSampleNoteBookmark(_ id: Int) {
+        if let index = bookmarkedSampleNoteIDs.firstIndex(of: id) {
+            bookmarkedSampleNoteIDs.remove(at: index)
+        } else {
+            bookmarkedSampleNoteIDs.append(id)
+        }
+    }
+
+    func isSampleNoteRead(_ id: Int) -> Bool {
+        readSampleNoteIDs.contains(id)
+    }
+
+    func markSampleNoteRead(_ id: Int) {
+        guard !readSampleNoteIDs.contains(id) else { return }
+        readSampleNoteIDs.append(id)
+    }
 }
