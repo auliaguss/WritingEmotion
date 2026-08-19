@@ -8,12 +8,14 @@ enum EntryStatus: String, Codable {
 struct WritingEntry: Identifiable, Codable, Equatable {
     let id: UUID
     var body: String
+    var prompt: String
     var status: EntryStatus
     var createdAt: Date
 
-    init(id: UUID = UUID(), body: String, status: EntryStatus, createdAt: Date) {
+    init(id: UUID = UUID(), body: String, prompt: String = "", status: EntryStatus, createdAt: Date) {
         self.id = id
         self.body = body
+        self.prompt = prompt
         self.status = status
         self.createdAt = createdAt
     }

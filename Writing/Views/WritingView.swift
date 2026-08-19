@@ -229,7 +229,7 @@ struct WritingView: View {
     }
 
     private func finish(status: EntryStatus) {
-        store.save(body: draft, status: status)
+        store.save(body: draft, prompt: currentPrompt, status: status)
         showSavePopup = false
         route = .animation
     }

@@ -79,8 +79,8 @@ struct BookmarkView: View {
         } label: {
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(entry.body)
-                        .font(.system(size: 14))
+                    Text("\u{201C}\(entry.prompt)\u{201D}")
+                        .font(.system(size: 14, weight: .medium, design: .serif))
                         .foregroundStyle(Theme.ink)
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)

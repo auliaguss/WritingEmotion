@@ -9,6 +9,9 @@ final class AppStore: ObservableObject {
     @Published var bookmarkedIDs: Set<UUID> = [] {
         didSet { persistBookmarks() }
     }
+    @Published var readIDs: Set<UUID> = [] {
+        didSet { persistReadIDs() }
+    }
     @Published var profileName: String = "Lorem ipsum" {
         didSet { defaults.set(profileName, forKey: Keys.name) }
     }
@@ -24,6 +27,7 @@ final class AppStore: ObservableObject {
     private enum Keys {
         static let entries = "writing.entries"
         static let bookmarks = "writing.bookmarks"
+        static let readIDs = "writing.readIDs"
         static let name = "writing.profile.name"
         static let bio = "writing.profile.bio"
         static let image = "writing.profile.image"
@@ -38,6 +42,10 @@ final class AppStore: ObservableObject {
            let decoded = try? JSONDecoder().decode(Set<UUID>.self, from: data) {
             bookmarkedIDs = decoded
         }
+        if let data = defaults.data(forKey: Keys.readIDs),
+           let decoded = try? JSONDecoder().decode(Set<UUID>.self, from: data) {
+            readIDs = decoded
+        }
         if let name = defaults.string(forKey: Keys.name) {
             profileName = name
         }
@@ -51,6 +59,7 @@ final class AppStore: ObservableObject {
     var publishedEntries: [WritingEntry] { entries.filter { $0.status == .published } }
     var draftEntries: [WritingEntry] { entries.filter { $0.status == .draft } }
     var bookmarkedEntries: [WritingEntry] { entries.filter { bookmarkedIDs.contains($0.id) } }
+    var unreadPublishedEntries: [WritingEntry] { publishedEntries.filter { !readIDs.contains($0.id) } }
 
     func isBookmarked(_ entry: WritingEntry) -> Bool {
         bookmarkedIDs.contains(entry.id)
@@ -64,8 +73,16 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func save(body: String, status: EntryStatus) {
-        entries.insert(WritingEntry(body: body, status: status, createdAt: Date()), at: 0)
+    func isRead(_ entry: WritingEntry) -> Bool {
+        readIDs.contains(entry.id)
+    }
+
+    func markAsRead(_ entry: WritingEntry) {
+        readIDs.insert(entry.id)
+    }
+
+    func save(body: String, prompt: String, status: EntryStatus) {
+        entries.insert(WritingEntry(body: body, prompt: prompt, status: status, createdAt: Date()), at: 0)
     }
 
     private func persistEntries() {
@@ -76,5 +93,10 @@ final class AppStore: ObservableObject {
     private func persistBookmarks() {
         guard let data = try? JSONEncoder().encode(bookmarkedIDs) else { return }
         defaults.set(data, forKey: Keys.bookmarks)
+    }
+
+    private func persistReadIDs() {
+        guard let data = try? JSONEncoder().encode(readIDs) else { return }
+        defaults.set(data, forKey: Keys.readIDs)
     }
 }
