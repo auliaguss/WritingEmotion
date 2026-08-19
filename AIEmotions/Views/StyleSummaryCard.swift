@@ -25,6 +25,7 @@ struct StyleSummaryCard: View {
     @Bindable var user: User
 
     @State private var generator = StyleSummaryGenerator()
+    @State private var isExpanded: Bool = true
     #if DEBUG
     @State private var showWrapped = false
     #endif
@@ -53,29 +54,55 @@ struct StyleSummaryCard: View {
         } else {
             card {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("In your words")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Theme.ink)
+                    // Header Row with Title and Toggle Button
+                    HStack {
+                        Text("In your words")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Theme.ink)
 
-                    if generator.isGenerating {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("Getting to know your voice…")
+                        Spacer()
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(isExpanded ? "Hide" : "Show")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundStyle(Theme.inkMuted)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Theme.background))
+                        }
+                    }
+
+                    // Content hides when collapsed
+                    if isExpanded {
+                        if generator.isGenerating {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Getting to know your voice…")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(Theme.inkMuted)
+                            }
+                        } else if let summary = user.styleSummaryText {
+                            Text(summary)
+                                .font(.system(size: 14))
+                                .foregroundStyle(Theme.ink)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        } else {
+                            Text("Tap Generate and we'll put together a short reflection on your recent writing.")
                                 .font(.system(size: 14))
                                 .foregroundStyle(Theme.inkMuted)
                         }
-                    } else if let summary = user.styleSummaryText {
-                        Text(summary)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.ink)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text("Tap Generate and we'll put together a short reflection on your recent writing.")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.inkMuted)
+                        
                     }
-
                     buttonRow
                 }
             }

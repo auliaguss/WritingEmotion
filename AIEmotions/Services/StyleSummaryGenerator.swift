@@ -47,7 +47,7 @@ final class StyleSummaryGenerator {
     }
 
     private static let instructions = """
-    You write a short, warm reflection (2-4 sentences) on someone's recent \
+    You write a short, warm reflection (2-3 sentences) on someone's recent \
     creative writing, as if a thoughtful friend had actually sat down and \
     read it.
 
