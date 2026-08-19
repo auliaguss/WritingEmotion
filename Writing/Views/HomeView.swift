@@ -17,12 +17,14 @@ struct HomeView: View {
                     route = .writing
                 }
 
-                if store.hasEntries {
+                if true {
                     actionButton(
                         title: "Read",
                         icon: "book.fill",
                         caption: "Discover a piece written by someone else!"
-                    ) {}
+                    ) {
+                        route = .read
+                    }
                 }
             }
             .padding(.horizontal, 24)

@@ -12,6 +12,8 @@ enum Route {
     case writing
     case animation
     case profile
+    case read
+    case bookmarks
 }
 
 struct ContentView: View {
@@ -30,6 +32,10 @@ struct ContentView: View {
                 TransitionAnimationView(route: $route)
             case .profile:
                 ProfileView(route: $route)
+            case .read:
+                ReadView(route: $route)
+            case .bookmarks:
+                BookmarkView(route: $route)
             }
         }
         .environmentObject(store)
