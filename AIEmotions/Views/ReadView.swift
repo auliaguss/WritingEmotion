@@ -239,9 +239,7 @@ struct ReadView: View {
         let candidates = SampleNoteBank.all.filter { !user.isSampleNoteRead($0.id) && $0.id != selectedNote?.id }
         guard let next = candidates.randomElement() else { return }
         user.markSampleNoteRead(next.id)
-        withAnimation(motionStyle.replacementAnimation(reduceMotion: reduceMotion)) {
-            selectedNote = next
-        }
+        selectedNote = next
     }
 
     private var header: some View {
@@ -512,8 +510,6 @@ private struct NoteDetailView: View {
                         .foregroundStyle(Theme.ink)
                         .lineSpacing(6)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .id(note.id)
-                        .transition(motionStyle.contentTransition(reduceMotion: reduceMotion))
                 }
 
                 readAnotherButton
