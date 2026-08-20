@@ -54,8 +54,9 @@ final class PromptManager {
     "Unpacking a stranger's suitcase", "Whispering to an empty room"). \
     Never write full sentences, only the phrase.
 
-    For each prompt also name the 1-2 core emotions it's meant to evoke, \
-    as lowercase, comma-separated words (e.g. "nostalgia, wonder").
+    For each prompt, you must provide two emotional classifications:
+    1. A strict core emotion category from this exact list: joy, sadness, fear, anger, surprise, anticipation, trust, disgust.
+    2. A creative, freeform emotion phrase (1-2 lowercase words) to display to the user (e.g., "nostalgia, wonder", "wistful yearning").
 
     Keep prompts varied, concrete, and evocative rather than abstract. \
     Avoid repeating the same verb or object twice in one batch.
@@ -63,9 +64,6 @@ final class PromptManager {
 
     // MARK: - Daily batch
 
-    /// Generates and persists today's 3 prompts, but only if the user
-    /// doesn't already have a set for today. Safe to call every time the
-    /// writing screen appears.
     func generateDailyPromptsIfNeeded(for user: User) async {
         guard !user.hasTodaysPrompts else { return }
         isGenerating = true
@@ -77,8 +75,6 @@ final class PromptManager {
         user.setTodaysPrompts(prompts)
     }
 
-    /// Force-regenerates today's set even if one already exists — only
-    /// meant for a manual "start over" affordance, not the normal flow.
     func regenerateToday(for user: User) async {
         isGenerating = true
         defer { isGenerating = false }
@@ -90,9 +86,6 @@ final class PromptManager {
 
     // MARK: - Shuffle (delete, no replacement)
 
-    /// Removes `prompt` from today's set for good. Returns false (and
-    /// does nothing) if it's the last remaining prompt — the user always
-    /// has to be left with at least one to write from.
     @discardableResult
     func discardPrompt(_ prompt: PromptData, for user: User) -> Bool {
         user.removeTodaysPrompt(id: prompt.id)
@@ -100,11 +93,6 @@ final class PromptManager {
 
     // MARK: - Discovery prompt (once per day, post-unlock only)
 
-    /// Generates one extra prompt strictly prioritizing an emotion the
-    /// user has NEVER scored. Only falls back to their lowest-scored
-    /// emotion if the model genuinely can't land on a fresh one. Only
-    /// available once the profile is unlocked (5+ on some emotion) and
-    /// only once per calendar day.
     @discardableResult
     func generateDiscoveryPrompt(for user: User) async -> PromptData? {
         guard user.isEmotionProfileUnlocked, !user.hasUsedDiscoveryToday else { return nil }
@@ -136,7 +124,12 @@ final class PromptManager {
             )
             generationError = nil
             return response.content.prompts.map {
-                PromptData(fullText: $0.fullText, verb: $0.verb, emotionData: $0.emotionData)
+                PromptData(
+                    fullText: $0.fullText,
+                    verb: $0.verb,
+                    emotionData: $0.displayEmotion,
+                    coreEmotion: $0.coreEmotion.rawValue
+                )
             }
         } catch {
             generationError = error.localizedDescription
@@ -149,22 +142,19 @@ final class PromptManager {
             return Self.fallbackBatch().randomElement()!
         }
 
-        // Strict priority order given to the model: (1) an emotion never
-        // scored by this writer at all, (2) only if that's genuinely not
-        // possible, their single lowest-scored emotion.
         let scoredList = scoredEmotions.isEmpty ? "(none yet)" : scoredEmotions.joined(separator: ", ")
         var instruction = """
         Generate 1 new writing prompt. Follow this priority strictly:
-        Priority 1 — evoke an emotion that is NOT in this list of emotions the \
+        Priority 1 — evoke a core emotion category that is NOT in this list of core emotions the \
         writer has already scored at least once: \(scoredList). This is the \
-        preferred outcome; almost any distinct emotion word not on that list \
-        qualifies, so use this priority unless truly no such word exists.
+        preferred outcome; almost any distinct core emotion not on that list \
+        qualifies, so use this priority unless truly no such category exists.
         """
         if let lowestScoredEmotion {
             instruction += """
 
             Priority 2 (fallback ONLY if priority 1 is genuinely impossible) \
-            — use the writer's lowest-scored emotion so far: '\(lowestScoredEmotion)'.
+            — use the writer's lowest-scored core emotion category so far: '\(lowestScoredEmotion)'.
             """
         }
 
@@ -172,7 +162,12 @@ final class PromptManager {
             let response = try await session.respond(to: instruction, generating: GeneratedPrompt.self)
             let p = response.content
             generationError = nil
-            return PromptData(fullText: p.fullText, verb: p.verb, emotionData: p.emotionData)
+            return PromptData(
+                fullText: p.fullText,
+                verb: p.verb,
+                emotionData: p.displayEmotion,
+                coreEmotion: p.coreEmotion.rawValue
+            )
         } catch {
             generationError = error.localizedDescription
             return Self.fallbackBatch().randomElement()!
@@ -182,20 +177,20 @@ final class PromptManager {
     private static func biasLine(from userProfile: [String: Int]) -> String {
         let top = userProfile.sorted { $0.value > $1.value }.prefix(3).map(\.key)
         guard !top.isEmpty else {
-            return "The writer has no established emotional profile yet — deliberately spread the 3 prompts across distinctly different emotions so they can explore broadly."
+            return "The writer has no established emotional profile yet — deliberately spread the 3 prompts across distinctly different core emotions so they can explore broadly."
         }
-        return "This writer has recently leaned toward these emotions: \(top.joined(separator: ", ")). " +
+        return "This writer has recently leaned toward these core emotions: \(top.joined(separator: ", ")). " +
                "Lean into 1-2 of them, but keep the third prompt a wildcard for variety."
     }
 
     private static func fallbackBatch() -> [PromptData] {
         [
-            PromptData(fullText: "Chasing fireflies through fog", verb: "Chasing", emotionData: "nostalgia, wonder"),
-            PromptData(fullText: "Unpacking a stranger's suitcase", verb: "Unpacking", emotionData: "curiosity, unease"),
-            PromptData(fullText: "Whispering to an empty room", verb: "Whispering", emotionData: "loneliness, comfort"),
-            PromptData(fullText: "Folding yesterday's letters", verb: "Folding", emotionData: "grief, tenderness"),
-            PromptData(fullText: "Racing a closing door", verb: "Racing", emotionData: "urgency, hope"),
-            PromptData(fullText: "Planting a borrowed garden", verb: "Planting", emotionData: "patience, optimism")
+            PromptData(fullText: "Chasing fireflies through fog", verb: "Chasing", emotionData: "nostalgia, wonder", coreEmotion: CoreEmotion.joy.rawValue),
+            PromptData(fullText: "Unpacking a stranger's suitcase", verb: "Unpacking", emotionData: "curiosity, unease", coreEmotion: CoreEmotion.fear.rawValue),
+            PromptData(fullText: "Whispering to an empty room", verb: "Whispering", emotionData: "loneliness, comfort", coreEmotion: CoreEmotion.sadness.rawValue),
+            PromptData(fullText: "Folding yesterday's letters", verb: "Folding", emotionData: "grief, tenderness", coreEmotion: CoreEmotion.sadness.rawValue),
+            PromptData(fullText: "Racing a closing door", verb: "Racing", emotionData: "urgency, hope", coreEmotion: CoreEmotion.anticipation.rawValue),
+            PromptData(fullText: "Planting a borrowed garden", verb: "Planting", emotionData: "patience, optimism", coreEmotion: CoreEmotion.anticipation.rawValue)
         ]
     }
 }
@@ -212,8 +207,13 @@ struct GeneratedPromptBatch {
 struct GeneratedPrompt {
     @Guide(description: "A present-participle verb, e.g. 'Chasing', 'Unpacking', 'Whispering'")
     var verb: String
+    
     @Guide(description: "A 3-6 word evocative 'verb-ing + object' phrase built from the verb, e.g. 'Chasing fireflies through fog'")
     var fullText: String
-    @Guide(description: "1-2 lowercase emotion words this phrase evokes, comma separated, e.g. 'nostalgia, wonder'")
-    var emotionData: String
+    
+    @Guide(description: "1-2 highly creative emotion words for the UI, e.g. 'wistful, yearning'")
+    var displayEmotion: String
+    
+    @Guide(description: "Categorize the prompt into one of the strict core foundational emotions.")
+    var coreEmotion: CoreEmotion
 }

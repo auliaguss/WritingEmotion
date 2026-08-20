@@ -196,7 +196,7 @@ struct PostRow: View {
     container.mainContext.insert(user)
     Post.saveAsDraft(
         text: "The fog rolled in just as I started running.",
-        prompt: PromptData(fullText: "Chasing fireflies through fog", verb: "Chasing", emotionData: "nostalgia, wonder"),
+        prompt: PromptData(fullText: "Chasing fireflies through fog", verb: "Chasing", emotionData: "nostalgia, wonder", coreEmotion: CoreEmotion.joy.rawValue),
         photoData: nil,
         for: user,
         in: container.mainContext
