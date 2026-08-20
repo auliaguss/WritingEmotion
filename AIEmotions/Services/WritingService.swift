@@ -14,10 +14,23 @@ struct PublishWritingRequest: Codable, Equatable, Sendable {
     let fullText: String
     let prompt: PublishedPrompt
 
+    private enum CodingKeys: String, CodingKey {
+        case clientWritingID = "client_writing_id"
+        case title
+        case fullText = "full_text"
+        case prompt
+    }
+
     struct PublishedPrompt: Codable, Equatable, Sendable {
         let verb: String
         let fullText: String
         let emotions: [String]
+
+        private enum CodingKeys: String, CodingKey {
+            case verb
+            case fullText = "full_text"
+            case emotions
+        }
     }
 }
 
@@ -31,6 +44,18 @@ struct PublishedWritingResponse: Codable, Sendable {
     let status: String
     let createdAt: Date
     let publishedAt: Date
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case clientWritingID = "client_writing_id"
+        case title
+        case fullText = "full_text"
+        case authorID = "author_id"
+        case prompt
+        case status
+        case createdAt = "created_at"
+        case publishedAt = "published_at"
+    }
 }
 
 enum WritingServiceError: LocalizedError {
@@ -92,7 +117,6 @@ struct HTTPWritingService: WritingService {
         urlRequest.setValue(deviceID, forHTTPHeaderField: "X-Device-ID")
 
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         urlRequest.httpBody = try encoder.encode(request)
 
         let data: Data
@@ -110,7 +134,6 @@ struct HTTPWritingService: WritingService {
         switch httpResponse.statusCode {
         case 200, 201:
             let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
             decoder.dateDecodingStrategy = .custom { decoder in
                 let container = try decoder.singleValueContainer()
                 let value = try container.decode(String.self)
