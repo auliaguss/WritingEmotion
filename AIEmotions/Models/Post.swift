@@ -117,9 +117,9 @@ final class Post {
     /// as a draft, publishing here just flips its state rather than
     /// re-accepting the same values — call `update(text:photoData:)` first
     /// if the content changed.)
-    func publish() {
+    func publish(at date: Date = .now) {
         isPublished = true
-        publishedAt = .now
+        publishedAt = date
     }
 
     /// Edits the text/photo of a still-unpublished draft.

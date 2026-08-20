@@ -411,7 +411,7 @@ struct WritingView: View {
                     throw WritingServiceError.invalidResponse
                 }
                 post.remoteID = response.id
-                post.publish()
+                post.publish(at: response.publishedAt)
                 dismiss()
             } catch let error as WritingServiceError {
                 publishingError = error.localizedDescription

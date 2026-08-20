@@ -9,9 +9,8 @@
 //  CoreEmotion's 8 raw values, never the freeform creative display text
 //  a prompt shows the user.
 //
-//  Per the project scope, this stays fully local: `readPublished(id:)`
-//  from the class diagram (reading another device's published posts)
-//  is intentionally NOT implemented — there's no backend to fetch from.
+//  The profile, drafts, bookmarks, and read history stay local. Published
+//  writing content from other devices is loaded through WritingService.
 //
 
 import Foundation
@@ -88,8 +87,8 @@ final class User {
         posts.filter(\.isPublished).sorted { ($0.publishedAt ?? $0.createdAt) > ($1.publishedAt ?? $1.createdAt) }
     }
 
-    // readPublished(id: !deviceID) -> [Post] is intentionally skipped —
-    // see file header. Re-add here once there's a backend to read from.
+    // Remote published writings are value types loaded by WritingService,
+    // not SwiftData Posts attached to this local user.
 
     /// Bumps the weight for one CORE emotion. Called once per post, with
     /// the strict `CoreEmotion` category that post's prompt was tagged
@@ -234,36 +233,31 @@ final class User {
     }
     #endif
 
-    // MARK: - Read board (sample notes)
+    // MARK: - Read board
 
-    // Bookmark/read state for the Read screen's corkboard of sample
-    // "other writers'" notes (see SampleNoteBank — there's still no
-    // backend, so these are fixed placeholder content, not real other
-    // users). Keyed by SampleNote.id, which is a stable index into the
-    // fixed pool rather than a freshly-generated identifier, so a
-    // bookmark keeps pointing at the same note even after the board
-    // reshuffles to a different random batch.
-    var bookmarkedSampleNoteIDs: [Int] = []
-    var readSampleNoteIDs: [Int] = []
+    // Writing content comes from the backend. Bookmark and read state
+    // remains local to this device and is keyed by the backend writing ID.
+    var bookmarkedWritingIDs: [String] = []
+    var readWritingIDs: [String] = []
 
-    func isSampleNoteBookmarked(_ id: Int) -> Bool {
-        bookmarkedSampleNoteIDs.contains(id)
+    func isWritingBookmarked(_ id: String) -> Bool {
+        bookmarkedWritingIDs.contains(id)
     }
 
-    func toggleSampleNoteBookmark(_ id: Int) {
-        if let index = bookmarkedSampleNoteIDs.firstIndex(of: id) {
-            bookmarkedSampleNoteIDs.remove(at: index)
+    func toggleWritingBookmark(_ id: String) {
+        if let index = bookmarkedWritingIDs.firstIndex(of: id) {
+            bookmarkedWritingIDs.remove(at: index)
         } else {
-            bookmarkedSampleNoteIDs.append(id)
+            bookmarkedWritingIDs.append(id)
         }
     }
 
-    func isSampleNoteRead(_ id: Int) -> Bool {
-        readSampleNoteIDs.contains(id)
+    func isWritingRead(_ id: String) -> Bool {
+        readWritingIDs.contains(id)
     }
 
-    func markSampleNoteRead(_ id: Int) {
-        guard !readSampleNoteIDs.contains(id) else { return }
-        readSampleNoteIDs.append(id)
+    func markWritingRead(_ id: String) {
+        guard !readWritingIDs.contains(id) else { return }
+        readWritingIDs.append(id)
     }
 }
