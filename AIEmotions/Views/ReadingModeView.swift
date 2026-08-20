@@ -106,20 +106,21 @@ struct ReadingModeView: View {
             Theme.background.ignoresSafeArea()
             dotBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 24) {
                 header
 
                 ScrollView {
+                    if let loadError {
+                        Text(loadError)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.error)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
+
                     noteCard
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
-                }
-
-                if isReadingRemote {
-                    readAnotherButton
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 20)
                 }
             }
         }
@@ -134,6 +135,7 @@ struct ReadingModeView: View {
         HStack {
             RoundBackButton { dismiss() }
             Spacer()
+
             if isReadingRemote {
                 Button {
                     guard let currentRemoteID else { return }
@@ -146,6 +148,26 @@ struct ReadingModeView: View {
                         .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
                 }
                 .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark writing")
+
+                Button {
+                    readAnother()
+                } label: {
+                    Group {
+                        if isLoadingNext {
+                            ProgressView()
+                                .tint(Theme.ink)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.ink)
+                        }
+                    }
+                    .frame(width: 42, height: 42)
+                    .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
+                }
+                .disabled(unreadRemoteWritings.isEmpty || isLoadingNext)
+                .opacity(unreadRemoteWritings.isEmpty ? 0.4 : 1)
+                .accessibilityLabel("Read another writing")
             }
         }
         .padding(.horizontal, 20)
@@ -210,37 +232,6 @@ struct ReadingModeView: View {
             .stroke(Theme.ink.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
         .frame(height: 1)
-    }
-
-    private var readAnotherButton: some View {
-        VStack(spacing: 8) {
-            if let loadError {
-                Text(loadError)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.error)
-                    .multilineTextAlignment(.center)
-            }
-
-            Button(action: readAnother) {
-                HStack(spacing: 8) {
-                    if isLoadingNext {
-                        ProgressView()
-                            .tint(Theme.ink)
-                    } else {
-                        Image(systemName: "book")
-                            .font(.system(size: 15, weight: .semibold))
-                    }
-                    Text(unreadRemoteWritings.isEmpty ? "All caught up!" : "Read another")
-                        .font(.system(size: 15, weight: .bold))
-                }
-                .foregroundStyle(Theme.ink)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-            }
-            .hardCard(cornerRadius: 16, shadowOffset: 4)
-            .disabled(unreadRemoteWritings.isEmpty || isLoadingNext)
-            .opacity(unreadRemoteWritings.isEmpty ? 0.6 : 1)
-        }
     }
 
     private var dotBackground: some View {
