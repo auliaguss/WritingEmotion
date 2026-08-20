@@ -114,20 +114,13 @@ struct ReadingModeView: View {
             Theme.background.ignoresSafeArea()
             dotBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 24) {
                 header
 
                 ScrollView {
                     noteCard
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
-                }
-
-                if isReadingSample {
-                    readAnotherButton
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 20)
                 }
             }
         }
@@ -138,6 +131,7 @@ struct ReadingModeView: View {
         HStack {
             RoundBackButton { dismiss() }
             Spacer()
+            
             if isReadingSample {
                 Button {
                     toggleBookmark()
@@ -148,6 +142,20 @@ struct ReadingModeView: View {
                         .frame(width: 42, height: 42)
                         .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
                 }
+            }
+            
+            if isReadingSample {
+                Button {
+                    readAnother()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: 42, height: 42)
+                        .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
+                }
+                .disabled(!hasUnreadSamples)
+                .opacity(hasUnreadSamples ? 1 : 0.4)
             }
         }
         .padding(.horizontal, 20)
@@ -212,23 +220,6 @@ struct ReadingModeView: View {
             .stroke(Theme.ink.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
         .frame(height: 1)
-    }
-
-    private var readAnotherButton: some View {
-        Button(action: readAnother) {
-            HStack(spacing: 8) {
-                Image(systemName: "book")
-                    .font(.system(size: 15, weight: .semibold))
-                Text(hasUnreadSamples ? "Read another" : "All caught up!")
-                    .font(.system(size: 15, weight: .bold))
-            }
-            .foregroundStyle(Theme.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-        }
-        .hardCard(cornerRadius: 16, shadowOffset: 4)
-        .disabled(!hasUnreadSamples)
-        .opacity(hasUnreadSamples ? 1 : 0.6)
     }
 
     private var dotBackground: some View {
