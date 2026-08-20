@@ -75,11 +75,9 @@ private struct BoardItem: Identifiable {
 
 struct ReadView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var user: User
 
-    @State private var selectedNote: SampleNote?
-    @State private var showDetail = false
+    @State private var readingItem: ReadableItem?
 
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
@@ -93,8 +91,6 @@ struct ReadView: View {
     private let minScale: CGFloat = 0.5
     private let maxScale: CGFloat = 3.0
 
-    private let motionStyle = MotionStyle.paperLift
-
     var body: some View {
         ZStack(alignment: .topLeading) {
             Theme.background.ignoresSafeArea()
@@ -106,27 +102,6 @@ struct ReadView: View {
             if boardItems.isEmpty && !isRefreshing {
                 emptyState
             }
-
-            if showDetail, let note = selectedNote {
-                Theme.overlay
-                    .ignoresSafeArea()
-                    .onTapGesture { closeDetail() }
-                    .transition(.opacity)
-                    .zIndex(9)
-
-                NoteDetailView(
-                    note: note,
-                    user: user,
-                    motionStyle: motionStyle,
-                    onClose: closeDetail,
-                    onReadAnother: readAnotherNote
-                )
-                .padding(.horizontal, 16)
-                .padding(.top, 66)
-                .padding(.bottom, 16)
-                .transition(motionStyle.panelTransition(reduceMotion: reduceMotion))
-                .zIndex(10)
-            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
@@ -137,6 +112,9 @@ struct ReadView: View {
         .onShake {
             refreshBoard()
         }
+        .fullScreenCover(item: $readingItem) { item in
+            ReadingModeView(user: user, item: item)
+        }
     }
 
     // MARK: - Refresh (shake) flow
@@ -145,7 +123,7 @@ struct ReadView: View {
     /// user's real posts. Every visible note falls + fades out first
     /// (staggered), then a new random batch animates back in.
     private func refreshBoard() {
-        guard !isRefreshing, !showDetail else { return }
+        guard !isRefreshing, readingItem == nil else { return }
         isRefreshing = true
 
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -215,28 +193,7 @@ struct ReadView: View {
     }
 
     private func openNote(_ note: SampleNote) {
-        user.markSampleNoteRead(note.id)
-        selectedNote = note
-        withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
-            showDetail = true
-        }
-    }
-
-    private func closeDetail() {
-        withAnimation(motionStyle.animation(reduceMotion: reduceMotion)) {
-            showDetail = false
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.01 : motionStyle.dismissalDelay)) {
-            guard !showDetail else { return }
-            selectedNote = nil
-        }
-    }
-
-    private func readAnotherNote() {
-        let candidates = SampleNoteBank.all.filter { !user.isSampleNoteRead($0.id) && $0.id != selectedNote?.id }
-        guard let next = candidates.randomElement() else { return }
-        user.markSampleNoteRead(next.id)
-        selectedNote = next
+        readingItem = .sample(note)
     }
 
     private var header: some View {
@@ -451,94 +408,6 @@ private struct StickyNoteView: View {
         }
         .rotationEffect(.degrees(rotation))
         .zIndex(1)
-    }
-}
-
-private struct NoteDetailView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let note: SampleNote
-    @Bindable var user: User
-    let motionStyle: MotionStyle
-    let onClose: () -> Void
-    let onReadAnother: () -> Void
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter
-    }()
-
-    private var hasUnread: Bool {
-        SampleNoteBank.all.contains { !user.isSampleNoteRead($0.id) && $0.id != note.id }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text(Self.dateFormatter.string(from: note.createdAt))
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Theme.inkMuted)
-                    Spacer()
-                    Button {
-                        user.toggleSampleNoteBookmark(note.id)
-                    } label: {
-                        Image(systemName: user.isSampleNoteBookmarked(note.id) ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Theme.accent)
-                            .frame(width: 32, height: 32)
-                            .background(Circle().fill(Theme.card))
-                            .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
-                    }
-                    Button(action: onClose) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Theme.ink)
-                            .frame(width: 32, height: 32)
-                            .background(Circle().fill(Theme.card))
-                            .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
-                    }
-                }
-
-                readAnotherButton
-
-                ScrollView {
-                    Text(note.body)
-                        .font(.system(size: 18, design: .serif))
-                        .foregroundStyle(Theme.ink)
-                        .lineSpacing(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                readAnotherButton
-        }
-        .padding(24)
-        .background(RoundedRectangle(cornerRadius: 22).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.ink, lineWidth: 2))
-        .shadow(color: Theme.ink.opacity(0.28), radius: 0, x: 7, y: 8)
-    }
-
-    @ViewBuilder
-    private var readAnotherButton: some View {
-        Button(action: onReadAnother) {
-            HStack(spacing: 8) {
-                Image(systemName: "book.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                Text(hasUnread ? "Read Another Note" : "All Caught Up!")
-                    .font(.system(size: 14, weight: .bold))
-            }
-            .foregroundStyle(hasUnread ? Theme.tipText : Theme.inkMuted)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .hardCard(
-                fill: hasUnread ? Theme.accent : Theme.card,
-                cornerRadius: 10,
-                borderWidth: 1.5,
-                shadowOffset: 3
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(!hasUnread)
-        .opacity(hasUnread ? 1 : 0.6)
     }
 }
 

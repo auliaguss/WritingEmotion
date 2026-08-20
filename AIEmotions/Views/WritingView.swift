@@ -67,7 +67,8 @@ struct WritingView: View {
                 id: draft.uniqueID,
                 fullText: draft.promptFullText,
                 verb: draft.promptVerb,
-                emotionData: draft.promptEmotionData
+                emotionData: draft.promptEmotionData,
+                coreEmotion: draft.promptCoreEmotion
             )
         }
         return todaysPrompts.first
