@@ -31,7 +31,6 @@ struct WritingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @Bindable var user: User
     private let draft: Post?
     @State private var promptManager = PromptManager()
@@ -78,9 +77,7 @@ struct WritingView: View {
         user.isEmotionProfileUnlocked && user.hasExhaustedTodaysShuffles && !user.hasUsedDiscoveryToday
     }
 
-    private var motionStyle: MotionStyle {
-        MotionStyle.selected(from: motionStyleValue)
-    }
+    private let motionStyle = MotionStyle.paperLift
 
     @FocusState private var isInputActive: Bool
 
@@ -107,9 +104,9 @@ struct WritingView: View {
                     }
                     .padding()
                     .opacity(contentVisible ? 1 : 0)
-                    .scaleEffect(contentVisible || reduceMotion ? 1 : (motionStyle == .ink ? 0.96 : 0.985))
-                    .offset(y: contentVisible || reduceMotion ? 0 : (motionStyle == .quiet ? 14 : 26))
-                    .rotationEffect(.degrees(contentVisible || reduceMotion || motionStyle != .paperLift ? 0 : -0.6))
+                    .scaleEffect(contentVisible || reduceMotion ? 1 : 0.985)
+                    .offset(y: contentVisible || reduceMotion ? 0 : 26)
+                    .rotationEffect(.degrees(contentVisible || reduceMotion ? 0 : -0.6))
                 }
                 .onTapGesture {
                     isInputActive = false

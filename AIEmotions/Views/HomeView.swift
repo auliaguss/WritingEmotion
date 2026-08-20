@@ -17,15 +17,12 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @Bindable var user: User
     @State private var showWriting = false
     @State private var animateCaption = false
     @State private var showsCompletedDay = false
 
-    private var motionStyle: MotionStyle {
-        MotionStyle.selected(from: motionStyleValue)
-    }
+    private let motionStyle = MotionStyle.paperLift
     
     var body: some View {
         NavigationStack {

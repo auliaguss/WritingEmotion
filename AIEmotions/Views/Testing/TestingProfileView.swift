@@ -25,7 +25,6 @@ struct TestingProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var user: User
 
-    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @State private var didRefresh = false
 
     var body: some View {
@@ -37,8 +36,6 @@ struct TestingProfileView: View {
                     header
 
                     refreshDayButton
-
-                    motionStylePicker
 
                     dailyStateSummary
 
@@ -90,45 +87,6 @@ struct TestingProfileView: View {
                     .multilineTextAlignment(.center)
             }
         }
-    }
-
-    private var motionStylePicker: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Motion study")
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(Theme.ink)
-
-            Text("Choose a direction, then replay Write and Read from Home.")
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.inkMuted)
-
-            ForEach(MotionStyle.allCases) { style in
-                Button {
-                    motionStyleValue = style.rawValue
-                } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: motionStyleValue == style.rawValue ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(motionStyleValue == style.rawValue ? Theme.accent : Theme.inkMuted)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(style.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Theme.ink)
-                            Text(style.summary)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.inkMuted)
-                                .multilineTextAlignment(.leading)
-                        }
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.ink, lineWidth: 2))
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var dailyStateSummary: some View {

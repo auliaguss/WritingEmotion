@@ -76,7 +76,6 @@ private struct BoardItem: Identifiable {
 struct ReadView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(MotionStyle.storageKey) private var motionStyleValue = MotionStyle.defaultValue
     @Bindable var user: User
 
     @State private var selectedNote: SampleNote?
@@ -94,9 +93,7 @@ struct ReadView: View {
     private let minScale: CGFloat = 0.5
     private let maxScale: CGFloat = 3.0
 
-    private var motionStyle: MotionStyle {
-        MotionStyle.selected(from: motionStyleValue)
-    }
+    private let motionStyle = MotionStyle.paperLift
 
     var body: some View {
         ZStack(alignment: .topLeading) {
