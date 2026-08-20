@@ -64,9 +64,10 @@ struct StickyNoteCard: View {
                 .foregroundStyle(Theme.ink.opacity(0.6))
 
             Text(bodyPreview)
-                .font(.system(size: 13))
+                .font(.custom("WaitingfortheSunrise", size: 16))
+//                .font(.system(size: 13))
                 .foregroundStyle(Theme.ink.opacity(0.85))
-                .lineLimit(3)
+                .lineLimit(2)
 
             if !emotions.isEmpty {
                 HStack(spacing: 6) {

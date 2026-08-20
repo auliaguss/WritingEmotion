@@ -375,7 +375,8 @@ private struct StickyNoteView: View {
             Spacer(minLength: 0)
 
             Text("\u{201C}\(note.prompt)\u{201D}")
-                .font(.system(size: 13, weight: .medium, design: .serif))
+                .font(.custom("WaitingfortheSunrise", size: 16))
+//                .font(.system(size: 13, weight: .medium, design: .serif))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(4)
                 .multilineTextAlignment(.center)
@@ -384,7 +385,8 @@ private struct StickyNoteView: View {
             Spacer(minLength: 0)
 
             Text(Self.dateFormatter.string(from: note.createdAt))
-                .font(.system(size: 10, weight: .medium))
+                .font(.custom("WaitingfortheSunrise", size: 14))
+//                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.ink.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
