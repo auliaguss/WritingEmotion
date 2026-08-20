@@ -54,7 +54,7 @@ struct HomeView: View {
                         }
                     }
 
-                    if user.hasWrittenToday {
+                    if true {
                         actionButton(
                             title: "Read",
                             icon: "book.fill",

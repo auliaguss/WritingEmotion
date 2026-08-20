@@ -114,7 +114,7 @@ struct ReadingModeView: View {
             Theme.background.ignoresSafeArea()
             dotBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
+            VStack(spacing: 24) {
                 header
 
                 ScrollView {
@@ -123,12 +123,12 @@ struct ReadingModeView: View {
                         .padding(.bottom, 24)
                 }
 
-                if isReadingSample {
-                    readAnotherButton
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 20)
-                }
+//                if isReadingSample {
+//                    readAnotherButton
+//                        .padding(.horizontal, 20)
+//                        .padding(.top, 12)
+//                        .padding(.bottom, 20)
+//                }
             }
         }
         .onAppear { markCurrentReadIfNeeded() }
@@ -138,6 +138,7 @@ struct ReadingModeView: View {
         HStack {
             RoundBackButton { dismiss() }
             Spacer()
+            
             if isReadingSample {
                 Button {
                     toggleBookmark()
@@ -148,6 +149,16 @@ struct ReadingModeView: View {
                         .frame(width: 42, height: 42)
                         .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
                 }
+            }
+            
+            Button {
+                readAnother()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 42, height: 42)
+                    .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
             }
         }
         .padding(.horizontal, 20)
