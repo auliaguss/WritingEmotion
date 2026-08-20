@@ -16,7 +16,6 @@
 //  fixes that by construction: this view never reads or writes `Post`
 //  or `user.posts` at all, only the fixed sample pool and the
 //  bookmark/read tracking on `User` (see SampleNoteBank.swift).
-//
 
 import SwiftUI
 import UIKit
@@ -29,14 +28,14 @@ private struct NoteLayout {
 }
 
 private let noteColors: [Color] = [
-    Color(hex: 0xFFF9C4),
-    Color(hex: 0xFFCCBC),
-    Color(hex: 0xC8E6C9),
-    Color(hex: 0xBBDEFB),
-    Color(hex: 0xE1BEE7),
-    Color(hex: 0xFFE0B2),
-    Color(hex: 0xB2DFDB),
-    Color(hex: 0xF8BBD0),
+    Color(hex: 0x9BF6FF),
+    Color(hex: 0xA0C4FF),
+    Color(hex: 0xBDB2FF),
+    Color(hex: 0xCAFFBF),
+    Color(hex: 0xFDFFB6),
+    Color(hex: 0xFFADAD),
+    Color(hex: 0xFFC6FF),
+    Color(hex: 0xFFD6A5),
 ]
 
 private func layoutsForEntries(count: Int, rows: Int = 3) -> [NoteLayout] {
@@ -350,6 +349,15 @@ private struct StickyNoteView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Image("pin")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 20, height: 20)
+                .foregroundStyle(Theme.accent)
+                .rotationEffect(.degrees(-45))
+                .shadow(color: .black.opacity(0.3), radius: 2, x: 1, y: 2)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
             HStack(spacing: 4) {
                 if isRead {
                     Image(systemName: "eye.fill")
@@ -393,14 +401,6 @@ private struct StickyNoteView: View {
                     .stroke(Theme.ink.opacity(0.15), lineWidth: 0.5)
             }
         )
-        .overlay(alignment: .top) {
-            Image(systemName: "pin.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(Theme.accent)
-                .rotationEffect(.degrees(-45))
-                .shadow(color: Color.black.opacity(0.3), radius: 2, x: 1, y: 2)
-                .offset(y: -14)
-        }
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isDragging else { return }
