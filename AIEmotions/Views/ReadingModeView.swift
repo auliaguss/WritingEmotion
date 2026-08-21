@@ -46,17 +46,19 @@ struct ReadingModeView: View {
     }()
 
     private var title: String {
-        switch current {
+        let original = switch current {
         case .post(let post): post.promptFullText
         case .sample(let note): note.prompt
         }
+        return user.displayedWriting(original)
     }
 
     private var bodyText: String {
-        switch current {
+        let original = switch current {
         case .post(let post): post.textContent
         case .sample(let note): note.body
         }
+        return user.displayedWriting(original)
     }
 
     private var emotions: [String] {

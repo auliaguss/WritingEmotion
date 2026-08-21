@@ -71,9 +71,9 @@ struct BookmarksView: View {
                             readingItem = .sample(note)
                         } label: {
                             StickyNoteCard(
-                                title: note.prompt,
+                                title: user.displayedWriting(note.prompt),
                                 date: note.createdAt,
-                                bodyPreview: note.body,
+                                bodyPreview: user.displayedWriting(note.body),
                                 emotions: note.emotions,
                                 color: stickyNoteColors[index % stickyNoteColors.count],
                                 rotation: stickyNoteRotation(for: index)

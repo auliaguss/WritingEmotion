@@ -26,6 +26,7 @@ struct TestingProfileView: View {
     @Bindable var user: User
 
     @State private var didRefresh = false
+    @State private var ageTestMessage: String?
 
     var body: some View {
         ZStack {
@@ -36,6 +37,8 @@ struct TestingProfileView: View {
                     header
 
                     refreshDayButton
+
+                    ageTestingCard
 
                     dailyStateSummary
 
@@ -89,6 +92,9 @@ struct TestingProfileView: View {
 
     private var dailyStateSummary: some View {
         VStack(alignment: .leading, spacing: 6) {
+            row("Confirmed age", user.age.map(String.init) ?? "Not set")
+            row("Explicit writing", user.canViewExplicitWriting ? "Visible" : "Censored")
+            row("Filter terms", "\(ProfanityFilter.termCount)")
             row("Written today", user.hasWrittenToday ? "Yes (Write is locked)" : "No")
             row("Today's prompts", user.hasTodaysPrompts ? "\(user.todaysPrompts.count) generated" : "None generated yet")
             row("Discovery used today", user.hasUsedDiscoveryToday ? "Yes" : "No")
@@ -98,6 +104,57 @@ struct TestingProfileView: View {
         .background(RoundedRectangle(cornerRadius: 5).fill(Theme.card))
         .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.ink, lineWidth: 2))
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var ageTestingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Age filter")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Theme.ink)
+
+            HStack(spacing: 10) {
+                ageButton("Under 18", age: 17)
+                ageButton("18+", age: 18)
+            }
+//
+//            Button {
+//                user.age = nil
+//                ageTestMessage = "Age cleared — the age question will appear again."
+//            } label: {
+//                Text("Show age question again")
+//                    .font(.system(size: 13, weight: .semibold))
+//                    .foregroundStyle(Theme.ink)
+//                    .frame(maxWidth: .infinity)
+//                    .padding(.vertical, 10)
+//            }
+//            .hardCard(cornerRadius: 14, shadowOffset: 3)
+
+            if let ageTestMessage {
+                Text(ageTestMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.inkMuted)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 5).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Theme.ink, lineWidth: 2))
+    }
+
+    private func ageButton(_ title: String, age: Int) -> some View {
+        Button {
+            user.confirmAge(age)
+            ageTestMessage = age >= 18
+                ? "Testing as 18+: profanity is visible."
+                : "Testing as under 18: profanity is censored."
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+        }
+        .hardCard(cornerRadius: 14, shadowOffset: 3)
     }
 
     private func row(_ label: String, _ value: String) -> some View {

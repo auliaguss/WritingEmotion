@@ -66,7 +66,11 @@ struct PostListContent: View {
                             Button {
                                 onSelectDraft(post)
                             } label: {
-                                PostRow(post: post, showsEditIndicator: true)
+                                PostRow(
+                                    post: post,
+                                    showsEditIndicator: true,
+                                    showsExplicitWriting: user.canViewExplicitWriting
+                                )
                             }
                             .buttonStyle(.plain)
                             .accessibilityHint("Opens this draft for editing")
@@ -74,7 +78,10 @@ struct PostListContent: View {
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                         } else {
-                            PostRow(post: post)
+                            PostRow(
+                                post: post,
+                                showsExplicitWriting: user.canViewExplicitWriting
+                            )
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
@@ -135,11 +142,16 @@ struct PostListView: View {
 struct PostRow: View {
     let post: Post
     var showsEditIndicator = false
+    var showsExplicitWriting = false
+
+    private func displayed(_ text: String) -> String {
+        showsExplicitWriting ? text : ProfanityFilter.censor(text)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(post.promptFullText)
+                Text(displayed(post.promptFullText))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.inkMuted)
                 Spacer()
@@ -154,7 +166,7 @@ struct PostRow: View {
                 }
             }
 
-            Text(post.textContent)
+            Text(displayed(post.textContent))
                 .font(.system(size: 14))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(4)

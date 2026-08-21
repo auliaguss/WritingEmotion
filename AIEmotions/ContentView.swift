@@ -19,7 +19,13 @@ struct ContentView: View {
     var body: some View {
         Group {
             if let user = users.first {
-                HomeView(user: user)
+                if user.age == nil {
+                    AgeGateView { age in
+                        user.confirmAge(age)
+                    }
+                } else {
+                    HomeView(user: user)
+                }
             } else {
                 ProgressView()
                     .task { bootstrapUser() }

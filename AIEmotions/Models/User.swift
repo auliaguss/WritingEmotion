@@ -25,6 +25,13 @@ final class User {
     var emotionProfile: [String: Int]
     var postsWrittenCount: Int
 
+    // MARK: - Local age gate
+    // Optional (and defaulted) so existing on-device stores migrate
+    // cleanly. A nil value means this install has not completed the age
+    // question yet; ContentView keeps the main app behind AgeGateView
+    // until it has.
+    var age: Int? = nil
+
     // MARK: - Style summary (button-generated, persistent)
     // The last-generated "In your words" reflection text, persisted so it
     // survives app relaunches and simply stays put until the user taps
@@ -74,6 +81,23 @@ final class User {
     func updateProfile(newBio: String, newPictureData: Data?) {
         profileText = newBio
         profilePictureData = newPictureData
+    }
+
+    /// Eighteen is treated as the adult boundary throughout the app.
+    var canViewExplicitWriting: Bool {
+        guard let age else { return false }
+        return age >= 18
+    }
+
+    func confirmAge(_ age: Int) {
+        self.age = min(max(age, 1), 120)
+    }
+
+    /// The only path read-only writing should use before reaching a Text
+    /// view. The original value is never changed, which keeps drafts and
+    /// future backend payloads intact.
+    func displayedWriting(_ text: String) -> String {
+        canViewExplicitWriting ? text : ProfanityFilter.censor(text)
     }
 
     /// (Diagram: `loadDrafts() -> [Post]`) — the `posts` relationship is

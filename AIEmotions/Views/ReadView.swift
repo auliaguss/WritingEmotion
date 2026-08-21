@@ -243,6 +243,7 @@ struct ReadView: View {
                 ForEach(boardItems) { item in
                     StickyNoteView(
                         note: item.note,
+                        displayedPrompt: user.displayedWriting(item.note.prompt),
                         color: noteColors[item.layout.colorIndex],
                         rotation: item.layout.rotation,
                         isBookmarked: user.isSampleNoteBookmarked(item.note.id),
@@ -334,6 +335,7 @@ struct ReadView: View {
 
 private struct StickyNoteView: View {
     let note: SampleNote
+    let displayedPrompt: String
     let color: Color
     let rotation: Double
     var isBookmarked: Bool = false
@@ -374,7 +376,7 @@ private struct StickyNoteView: View {
 
             Spacer(minLength: 0)
 
-            Text("\u{201C}\(note.prompt)\u{201D}")
+            Text("\u{201C}\(displayedPrompt)\u{201D}")
                 .font(.custom("WaitingfortheSunrise", size: 16))
 //                .font(.system(size: 13, weight: .medium, design: .serif))
                 .foregroundStyle(Theme.ink)
