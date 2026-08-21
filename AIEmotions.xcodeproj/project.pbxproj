@@ -10,9 +10,22 @@
 		899550E3303321EE00DB557B /* AIEmotions.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIEmotions.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		07F005BE303718BF00923886 /* Exceptions for "AIEmotions" folder in "AIEmotions" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 899550E2303321EE00DB557B /* AIEmotions */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		899550E5303321EE00DB557B /* AIEmotions */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				07F005BE303718BF00923886 /* Exceptions for "AIEmotions" folder in "AIEmotions" target */,
+			);
 			path = AIEmotions;
 			sourceTree = "<group>";
 		};
@@ -256,6 +269,8 @@
 				DEVELOPMENT_TEAM = 48B3GJ6Z4G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AIEmotions/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "\"\"";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AIEmotions uses your camera to scan a written page and transcribe it into your draft.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -289,6 +304,8 @@
 				DEVELOPMENT_TEAM = 48B3GJ6Z4G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AIEmotions/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "\"\"";
 				INFOPLIST_KEY_NSCameraUsageDescription = "AIEmotions uses your camera to scan a written page and transcribe it into your draft.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

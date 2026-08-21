@@ -46,17 +46,19 @@ struct ReadingModeView: View {
     }()
 
     private var title: String {
-        switch current {
+        let original = switch current {
         case .post(let post): post.promptFullText
         case .sample(let note): note.prompt
         }
+        return user.displayedWriting(original)
     }
 
     private var bodyText: String {
-        switch current {
+        let original = switch current {
         case .post(let post): post.textContent
         case .sample(let note): note.body
         }
+        return user.displayedWriting(original)
     }
 
     private var emotions: [String] {
@@ -175,15 +177,18 @@ struct ReadingModeView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 Text(title)
-                    .font(.system(size: 26, weight: .bold, design: .serif))
+                    .font(.custom("WaitingfortheSunrise", size: 30))
+//                    .font(.system(size: 26, weight: .bold, design: .serif))
                     .foregroundStyle(Theme.accent)
 
                 Text("\(bylineName) · \(Self.relativeFormatter.localizedString(for: date, relativeTo: .now))")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.custom("WaitingfortheSunrise", size: 20))
+//                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.accent.opacity(0.8))
 
                 Text(bodyText)
-                    .font(.system(size: 17, design: .serif))
+                    .font(.custom("WaitingfortheSunrise", size: 24))
+//                    .font(.system(size: 17, design: .serif))
                     .foregroundStyle(Theme.ink)
                     .lineSpacing(8)
                     .frame(maxWidth: .infinity, alignment: .leading)

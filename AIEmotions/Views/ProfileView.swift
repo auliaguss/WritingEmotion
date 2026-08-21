@@ -282,9 +282,9 @@ struct ProfileView: View {
                             readingItem = .post(post)
                         } label: {
                             StickyNoteCard(
-                                title: post.promptFullText,
+                                title: user.displayedWriting(post.promptFullText),
                                 date: post.publishedAt ?? post.createdAt,
-                                bodyPreview: post.textContent,
+                                bodyPreview: user.displayedWriting(post.textContent),
                                 emotions: post.promptEmotions,
                                 color: stickyNoteColors[index % stickyNoteColors.count],
                                 rotation: stickyNoteRotation(for: index)
@@ -318,9 +318,9 @@ struct ProfileView: View {
                             readingItem = .sample(note)
                         } label: {
                             StickyNoteCard(
-                                title: note.prompt,
+                                title: user.displayedWriting(note.prompt),
                                 date: note.createdAt,
-                                bodyPreview: note.body,
+                                bodyPreview: user.displayedWriting(note.body),
                                 emotions: note.emotions,
                                 color: stickyNoteColors[index % stickyNoteColors.count],
                                 rotation: stickyNoteRotation(for: index)

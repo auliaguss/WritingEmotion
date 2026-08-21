@@ -52,6 +52,14 @@ enum SampleNoteBank {
         ("Planting a borrowed garden", "patience, optimism"),
     ]
 
+    /// Distinct titles make the three filter-test notes easy to find on
+    /// the corkboard without putting profanity in the title itself.
+    private static let explicitPromptPairs: [(text: String, emotionData: String)] = [
+        ("Calling a terrible night what it was", "frustration, connection"),
+        ("Sitting down after the sharpest argument", "anger, vulnerability"),
+        ("Writing the unpolished truth", "honesty, exhaustion"),
+    ]
+
     private static let bodies: [String] = [
         """
         I remember the summer my grandfather taught me how to catch fireflies. We'd wait until the sky turned that particular shade of indigo — not quite night, not quite day — and walk barefoot through the wet grass behind his house. He never rushed. That was the thing about him. The world could be falling apart and he'd still stop to watch a spider spin its web.
@@ -1333,12 +1341,43 @@ enum SampleNoteBank {
         Maybe uncertainty isn't always something we need to solve.
 
         Maybe sometimes we just need to sit inside the fog until it clears.
+        """,
+
+        // Explicit-language samples intentionally live at the end so all
+        // pre-existing stable IDs keep pointing at the same notes.
+        """
+        I missed the last bus after a truly shitty shift and stood in the rain pretending I was fine.
+
+        "Damn it," I said to nobody, because sometimes naming a bad night is easier than making it meaningful.
+
+        Then a stranger held an umbrella over both of us and said, "This weather is absolute bullshit."
+
+        I laughed harder than the joke deserved. The night still sucked, but for a minute I wasn't carrying it alone.
+        """,
+
+        """
+        We had the kind of argument where every sentence arrived sharpened. I called him an asshole. He told me to stop acting like a bitch.
+
+        Neither of us meant everything we said, but that didn't make the words harmless.
+
+        The next morning we sat at the kitchen table, exhausted, and finally admitted the boring truth: we were both scared and doing a fucking terrible job of saying it.
+        """,
+
+        """
+        My class assignment was still open on the laptop when I decided I couldn't write another polished lie.
+
+        I typed: "I am pissed off. This week has been crap, and pretending otherwise hasn't fixed shit."
+
+        It wasn't elegant, but it was honest. Sometimes honesty starts as a mess before it becomes something useful.
         """
     ]
 
     /// The full fixed pool, in stable id order.
     static let all: [SampleNote] = bodies.enumerated().map { index, body in
-        let pair = promptPairs[index % promptPairs.count]
+        let explicitStartIndex = bodies.count - explicitPromptPairs.count
+        let pair = index >= explicitStartIndex
+            ? explicitPromptPairs[index - explicitStartIndex]
+            : promptPairs[index % promptPairs.count]
         return SampleNote(
             id: index,
             body: body,
@@ -1354,6 +1393,15 @@ enum SampleNoteBank {
     static func randomBatch(minCount: Int = 12) -> [SampleNote] {
         let shuffled = all.shuffled()
         let count = Int.random(in: min(minCount, shuffled.count)...shuffled.count)
-        return Array(shuffled.prefix(count))
+        var batch = Array(shuffled.prefix(count))
+
+        // Keep the placeholder feed immediately testable: every batch has
+        // at least one note whose body exercises the age filter.
+        if !batch.contains(where: { ProfanityFilter.containsProfanity($0.body) }),
+           let explicitSample = all.suffix(3).randomElement(),
+           !batch.isEmpty {
+            batch[batch.count - 1] = explicitSample
+        }
+        return batch
     }
 }

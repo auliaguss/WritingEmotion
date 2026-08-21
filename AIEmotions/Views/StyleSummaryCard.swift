@@ -90,7 +90,7 @@ struct StyleSummaryCard: View {
                                     .foregroundStyle(Theme.inkMuted)
                             }
                         } else if let summary = user.styleSummaryText {
-                            Text(summary)
+                            Text(user.displayedWriting(summary))
                                 .font(.system(size: 14))
                                 .foregroundStyle(Theme.ink)
                                 .multilineTextAlignment(.leading)

@@ -202,7 +202,7 @@ struct WritingView: View {
             .overlay(
                 TextEditor(text: $draftText)
                     .focused($isInputActive)
-                    .font(.system(size: 16))
+                    .font(.custom("WaitingfortheSunrise", size: 24))
                     .foregroundStyle(Theme.ink)
                     .scrollContentBackground(.hidden)
                     .padding(16)

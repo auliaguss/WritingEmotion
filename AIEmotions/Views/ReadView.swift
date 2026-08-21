@@ -16,7 +16,6 @@
 //  fixes that by construction: this view never reads or writes `Post`
 //  or `user.posts` at all, only the fixed sample pool and the
 //  bookmark/read tracking on `User` (see SampleNoteBank.swift).
-//
 
 import SwiftUI
 import UIKit
@@ -29,14 +28,14 @@ private struct NoteLayout {
 }
 
 private let noteColors: [Color] = [
-    Color(hex: 0xFFF9C4),
-    Color(hex: 0xFFCCBC),
-    Color(hex: 0xC8E6C9),
-    Color(hex: 0xBBDEFB),
-    Color(hex: 0xE1BEE7),
-    Color(hex: 0xFFE0B2),
-    Color(hex: 0xB2DFDB),
-    Color(hex: 0xF8BBD0),
+    Color(hex: 0x9BF6FF),
+    Color(hex: 0xA0C4FF),
+    Color(hex: 0xBDB2FF),
+    Color(hex: 0xCAFFBF),
+    Color(hex: 0xFDFFB6),
+    Color(hex: 0xFFADAD),
+    Color(hex: 0xFFC6FF),
+    Color(hex: 0xFFD6A5),
 ]
 
 private func layoutsForEntries(count: Int, rows: Int = 3) -> [NoteLayout] {
@@ -244,6 +243,7 @@ struct ReadView: View {
                 ForEach(boardItems) { item in
                     StickyNoteView(
                         note: item.note,
+                        displayedPrompt: user.displayedWriting(item.note.prompt),
                         color: noteColors[item.layout.colorIndex],
                         rotation: item.layout.rotation,
                         isBookmarked: user.isSampleNoteBookmarked(item.note.id),
@@ -335,6 +335,7 @@ struct ReadView: View {
 
 private struct StickyNoteView: View {
     let note: SampleNote
+    let displayedPrompt: String
     let color: Color
     let rotation: Double
     var isBookmarked: Bool = false
@@ -350,6 +351,15 @@ private struct StickyNoteView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Image("pin")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 20, height: 20)
+                .foregroundStyle(Theme.accent)
+                .rotationEffect(.degrees(-45))
+                .shadow(color: .black.opacity(0.3), radius: 2, x: 1, y: 2)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
             HStack(spacing: 4) {
                 if isRead {
                     Image(systemName: "eye.fill")
@@ -366,8 +376,9 @@ private struct StickyNoteView: View {
 
             Spacer(minLength: 0)
 
-            Text("\u{201C}\(note.prompt)\u{201D}")
-                .font(.system(size: 13, weight: .medium, design: .serif))
+            Text("\u{201C}\(displayedPrompt)\u{201D}")
+                .font(.custom("WaitingfortheSunrise", size: 16))
+//                .font(.system(size: 13, weight: .medium, design: .serif))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(4)
                 .multilineTextAlignment(.center)
@@ -376,7 +387,8 @@ private struct StickyNoteView: View {
             Spacer(minLength: 0)
 
             Text(Self.dateFormatter.string(from: note.createdAt))
-                .font(.system(size: 10, weight: .medium))
+                .font(.custom("WaitingfortheSunrise", size: 14))
+//                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.ink.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -393,14 +405,6 @@ private struct StickyNoteView: View {
                     .stroke(Theme.ink.opacity(0.15), lineWidth: 0.5)
             }
         )
-        .overlay(alignment: .top) {
-            Image(systemName: "pin.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(Theme.accent)
-                .rotationEffect(.degrees(-45))
-                .shadow(color: Color.black.opacity(0.3), radius: 2, x: 1, y: 2)
-                .offset(y: -14)
-        }
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isDragging else { return }
