@@ -2,37 +2,33 @@
 //  ReadingModeView.swift
 //  AIEmotions
 //
-//  The single reading page for any piece of writing — your own published
-//  Post, or a placeholder SampleNote from the Read wall / Bookmark tab.
-//  Opened from three places (ReadView's corkboard, ProfileView's
-//  Published grid, ProfileView's Bookmark grid) so it lives here instead
-//  of three separate detail views.
-//
-//  "Read another" always surfaces a different SAMPLE note, never one of
-//  your own posts — even if you opened this page from your own Published
-//  piece, tapping it jumps into someone else's (placeholder) writing.
+//  Reading page for either the user's local Post or a writing fetched
+//  from the backend.
 //
 
 import SwiftUI
 import SwiftData
 
-/// Either kind of thing this page can display.
 enum ReadableItem: Identifiable {
     case post(Post)
-    case sample(SampleNote)
+    case remote(PublishedWritingResponse)
 
     var id: String {
         switch self {
         case .post(let post): "post-\(post.uniqueID)"
-        case .sample(let note): "sample-\(note.id)"
+        case .remote(let writing): "remote-\(writing.id)"
         }
     }
 }
 
 struct ReadingModeView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.writingService) private var writingService
     @Bindable var user: User
     @State private var current: ReadableItem
+    @State private var remoteWritings: [PublishedWritingPreview] = []
+    @State private var isLoadingNext = false
+    @State private var loadError: String?
 
     init(user: User, item: ReadableItem) {
         self.user = user
@@ -48,65 +44,61 @@ struct ReadingModeView: View {
     private var title: String {
         switch current {
         case .post(let post): post.promptFullText
-        case .sample(let note): note.prompt
+        case .remote(let writing): writing.prompt.fullText
         }
     }
 
     private var bodyText: String {
         switch current {
         case .post(let post): post.textContent
-        case .sample(let note): note.body
+        case .remote(let writing): writing.fullText
         }
     }
 
     private var emotions: [String] {
         switch current {
         case .post(let post): post.promptEmotions
-        case .sample(let note): note.emotions
+        case .remote(let writing): writing.prompt.emotions
         }
     }
 
     private var date: Date {
         switch current {
         case .post(let post): post.publishedAt ?? post.createdAt
-        case .sample(let note): note.createdAt
+        case .remote(let writing): writing.publishedAt
         }
     }
 
     private var bylineName: String {
         switch current {
         case .post: "You"
-        case .sample: "anonymous"
+        case .remote: "anonymous"
         }
     }
 
-    /// Bookmarking only applies to sample notes — not your own posts.
-    private var isBookmarked: Bool {
-        guard case .sample(let note) = current else { return false }
-        return user.isSampleNoteBookmarked(note.id)
-    }
-
-    private func toggleBookmark() {
-        guard case .sample(let note) = current else { return }
-        user.toggleSampleNoteBookmark(note.id)
-    }
-
-    /// The sample note's id if `current` is one — used to exclude it from
-    /// "Read another" candidates, and is nil while reading your own post.
-    private var currentSampleID: Int? {
-        if case .sample(let note) = current { return note.id }
+    private var currentRemoteID: String? {
+        if case .remote(let writing) = current {
+            return writing.id
+        }
         return nil
     }
 
-    /// "Read another" (and the bookmark icon) only make sense for sample
-    /// notes — hidden entirely while reading one of your own posts.
-    private var isReadingSample: Bool {
-        if case .sample = current { return true }
+    private var isReadingRemote: Bool {
+        if case .remote = current {
+            return true
+        }
         return false
     }
 
-    private var hasUnreadSamples: Bool {
-        SampleNoteBank.all.contains { !user.isSampleNoteRead($0.id) && $0.id != currentSampleID }
+    private var isBookmarked: Bool {
+        guard let currentRemoteID else { return false }
+        return user.isWritingBookmarked(currentRemoteID)
+    }
+
+    private var unreadRemoteWritings: [PublishedWritingPreview] {
+        remoteWritings.filter {
+            $0.id != currentRemoteID && !user.isWritingRead($0.id)
+        }
     }
 
     var body: some View {
@@ -118,23 +110,36 @@ struct ReadingModeView: View {
                 header
 
                 ScrollView {
+                    if let loadError {
+                        Text(loadError)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.error)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
+
                     noteCard
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
                 }
             }
         }
-        .onAppear { markCurrentReadIfNeeded() }
+        .task {
+            markCurrentReadIfNeeded()
+            guard isReadingRemote else { return }
+            await loadRemoteWritings()
+        }
     }
 
     private var header: some View {
         HStack {
             RoundBackButton { dismiss() }
             Spacer()
-            
-            if isReadingSample {
+
+            if isReadingRemote {
                 Button {
-                    toggleBookmark()
+                    guard let currentRemoteID else { return }
+                    user.toggleWritingBookmark(currentRemoteID)
                 } label: {
                     Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 15, weight: .semibold))
@@ -142,20 +147,27 @@ struct ReadingModeView: View {
                         .frame(width: 42, height: 42)
                         .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
                 }
-            }
-            
-            if isReadingSample {
+                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark writing")
+
                 Button {
                     readAnother()
                 } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Theme.ink)
-                        .frame(width: 42, height: 42)
-                        .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
+                    Group {
+                        if isLoadingNext {
+                            ProgressView()
+                                .tint(Theme.ink)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Theme.ink)
+                        }
+                    }
+                    .frame(width: 42, height: 42)
+                    .overlay(Circle().stroke(Theme.ink, lineWidth: 1.5))
                 }
-                .disabled(!hasUnreadSamples)
-                .opacity(hasUnreadSamples ? 1 : 0.4)
+                .disabled(unreadRemoteWritings.isEmpty || isLoadingNext)
+                .opacity(unreadRemoteWritings.isEmpty ? 0.4 : 1)
+                .accessibilityLabel("Read another writing")
             }
         }
         .padding(.horizontal, 20)
@@ -212,10 +224,10 @@ struct ReadingModeView: View {
     }
 
     private var dashedDivider: some View {
-        GeometryReader { geo in
+        GeometryReader { geometry in
             Path { path in
                 path.move(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: geo.size.width, y: 0))
+                path.addLine(to: CGPoint(x: geometry.size.width, y: 0))
             }
             .stroke(Theme.ink.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
@@ -223,17 +235,20 @@ struct ReadingModeView: View {
     }
 
     private var dotBackground: some View {
-        Canvas { ctx, size in
+        Canvas { context, size in
             let spacing: CGFloat = 30
             let radius: CGFloat = 1.5
             let color = Theme.ink.opacity(0.12)
-            let cols = Int(size.width / spacing)
-            let rows = Int(size.height / spacing)
-            for row in 0...rows {
-                for col in 0...cols {
-                    let origin = CGPoint(x: CGFloat(col) * spacing, y: CGFloat(row) * spacing)
-                    ctx.fill(
-                        Path(ellipseIn: CGRect(x: origin.x - radius, y: origin.y - radius, width: radius * 2, height: radius * 2)),
+            for row in 0...Int(size.height / spacing) {
+                for column in 0...Int(size.width / spacing) {
+                    let origin = CGPoint(x: CGFloat(column) * spacing, y: CGFloat(row) * spacing)
+                    context.fill(
+                        Path(ellipseIn: CGRect(
+                            x: origin.x - radius,
+                            y: origin.y - radius,
+                            width: radius * 2,
+                            height: radius * 2
+                        )),
                         with: .color(color)
                     )
                 }
@@ -243,20 +258,38 @@ struct ReadingModeView: View {
 
     // MARK: - Actions
 
-    private func markCurrentReadIfNeeded() {
-        if case .sample(let note) = current {
-            user.markSampleNoteRead(note.id)
+    private func loadRemoteWritings() async {
+        do {
+            remoteWritings = try await writingService.fetchWritings(deviceID: user.deviceID)
+                .filter { $0.authorID != user.deviceID }
+            loadError = nil
+        } catch is CancellationError {
+            // The view disappeared while its task was running.
+        } catch {
+            loadError = error.localizedDescription
         }
     }
 
-    /// Always jumps to another sample note — deliberately never cycles
-    /// through the user's own posts, regardless of what `current` is.
+    private func markCurrentReadIfNeeded() {
+        guard let currentRemoteID else { return }
+        user.markWritingRead(currentRemoteID)
+    }
+
     private func readAnother() {
-        let candidates = SampleNoteBank.all.filter { !user.isSampleNoteRead($0.id) && $0.id != currentSampleID }
-        guard let next = candidates.randomElement() else { return }
-        user.markSampleNoteRead(next.id)
-        withAnimation(.easeInOut(duration: 0.25)) {
-            current = .sample(next)
+        guard let next = unreadRemoteWritings.randomElement(), !isLoadingNext else { return }
+        isLoadingNext = true
+        loadError = nil
+        Task {
+            do {
+                let writing = try await writingService.fetchWriting(id: next.id, deviceID: user.deviceID)
+                user.markWritingRead(writing.id)
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    current = .remote(writing)
+                }
+            } catch {
+                loadError = error.localizedDescription
+            }
+            isLoadingNext = false
         }
     }
 }
@@ -268,6 +301,17 @@ struct ReadingModeView: View {
     )
     let user = User()
     container.mainContext.insert(user)
-    return ReadingModeView(user: user, item: .sample(SampleNoteBank.all[0]))
+    let post = Post(
+        deviceID: user.deviceID,
+        textContent: "A locally published writing.",
+        prompt: PromptData(
+            fullText: "Chasing fireflies through fog",
+            verb: "Chasing",
+            emotionData: "nostalgia, wonder",
+            coreEmotion: CoreEmotion.joy.rawValue
+        ),
+        isPublished: true
+    )
+    return ReadingModeView(user: user, item: .post(post))
         .modelContainer(container)
 }

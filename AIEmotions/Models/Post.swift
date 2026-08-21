@@ -37,6 +37,7 @@ final class Post {
     var isPublished: Bool
     var createdAt: Date
     var publishedAt: Date?
+    var remoteID: String?
 
     var author: User?
 
@@ -58,6 +59,7 @@ final class Post {
         self.isPublished = isPublished
         self.createdAt = .now
         self.publishedAt = isPublished ? .now : nil
+        self.remoteID = nil
     }
 
     /// The creative, freeform emotion tags carried by the prompt this
@@ -115,9 +117,9 @@ final class Post {
     /// as a draft, publishing here just flips its state rather than
     /// re-accepting the same values — call `update(text:photoData:)` first
     /// if the content changed.)
-    func publish() {
+    func publish(at date: Date = .now) {
         isPublished = true
-        publishedAt = .now
+        publishedAt = date
     }
 
     /// Edits the text/photo of a still-unpublished draft.

@@ -21,6 +21,7 @@ struct AIEmotionsApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.writingService, APIConfiguration.writingService)
         }
         .modelContainer(sharedModelContainer)
     }

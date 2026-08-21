@@ -2,20 +2,8 @@
 //  ReadView.swift
 //  AIEmotions
 //
-//  "Discover a piece written by someone else." Reading OTHER users'
-//  published posts needs a backend to fetch from, which this build
-//  intentionally doesn't have (see User.swift's readPublished note /
-//  PROJECT.md) — so this corkboard is populated from SampleNoteBank, a
-//  fixed pool of placeholder "other writer" notes, not real people.
-//
-//  Ported from the "Writing" branch's read-another-logic prototype:
-//  a pannable/zoomable board of sticky notes, shake-to-reshuffle, tap a
-//  note to read it full-size with a bookmark toggle and a "Read Another
-//  Note" shortcut. The original prototype kept swapping the user's real
-//  published posts out for fake ones on every shake — SampleNoteBank
-//  fixes that by construction: this view never reads or writes `Post`
-//  or `user.posts` at all, only the fixed sample pool and the
-//  bookmark/read tracking on `User` (see SampleNoteBank.swift).
+//  A pannable corkboard backed entirely by published writings from the
+//  live backend. Bookmark and read state remains local on User.
 //
 
 import SwiftUI
@@ -47,26 +35,24 @@ private func layoutsForEntries(count: Int, rows: Int = 3) -> [NoteLayout] {
     let startX: CGFloat = 40
     let startY: CGFloat = 40
 
-    return (0..<count).map { i in
-        let row = i % rows
-        let col = i / rows
-        let baseX = startX + CGFloat(col) * (noteW + spacingX) + noteW / 2
+    return (0..<count).map { index in
+        let row = index % rows
+        let column = index / rows
+        let baseX = startX + CGFloat(column) * (noteW + spacingX) + noteW / 2
         let baseY = startY + CGFloat(row) * (noteH + spacingY) + noteH / 2
-        let jitterX = CGFloat((i * 37 + 13) % 15) - 7
-        let jitterY = CGFloat((i * 23 + 7) % 13) - 6
-        let rotation = Double((i * 47 + 3) % 11) - 5
-        let colorIdx = i % noteColors.count
+        let jitterX = CGFloat((index * 37 + 13) % 15) - 7
+        let jitterY = CGFloat((index * 23 + 7) % 13) - 6
         return NoteLayout(
             position: CGPoint(x: baseX + jitterX, y: baseY + jitterY),
-            rotation: rotation,
-            colorIndex: colorIdx
+            rotation: Double((index * 47 + 3) % 11) - 5,
+            colorIndex: index % noteColors.count
         )
     }
 }
 
 private struct BoardItem: Identifiable {
-    var id: Int { note.id }
-    var note: SampleNote
+    var id: String { writing.id }
+    var writing: PublishedWritingPreview
     var layout: NoteLayout
     var yOffset: CGFloat = 0
     var opacity: Double = 1
@@ -75,39 +61,48 @@ private struct BoardItem: Identifiable {
 
 struct ReadView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.writingService) private var writingService
     @Bindable var user: User
 
     @State private var readingItem: ReadableItem?
+    @State private var boardItems: [BoardItem] = []
+    @State private var isRefreshing = false
+    @State private var isLoadingDetail = false
+    @State private var loadError: String?
 
-    @State private var scale: CGFloat = 1.0
-    @State private var lastScale: CGFloat = 1.0
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var isDragging = false
 
-    @State private var boardItems: [BoardItem] = []
-    @State private var isRefreshing = false
-
     private let minScale: CGFloat = 0.5
-    private let maxScale: CGFloat = 3.0
+    private let maxScale: CGFloat = 3
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Theme.background.ignoresSafeArea()
-
             boardCanvas
-
             header
 
-            if boardItems.isEmpty && !isRefreshing {
+            if boardItems.isEmpty {
                 emptyState
+            }
+
+            if isLoadingDetail {
+                Theme.overlay.ignoresSafeArea()
+                ProgressView("Opening writing…")
+                    .tint(Theme.ink)
+                    .foregroundStyle(Theme.ink)
+                    .padding(20)
+                    .hardCard(cornerRadius: 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear {
-            if boardItems.isEmpty {
-                syncBoardItems()
-            }
+        .task {
+            guard boardItems.isEmpty else { return }
+            await loadBoard()
         }
         .onShake {
             refreshBoard()
@@ -117,21 +112,45 @@ struct ReadView: View {
         }
     }
 
-    // MARK: - Refresh (shake) flow
+    // MARK: - Backend loading
 
-    /// Reshuffles which sample notes are on the board — never touches the
-    /// user's real posts. Every visible note falls + fades out first
-    /// (staggered), then a new random batch animates back in.
+    private func loadBoard() async {
+        isRefreshing = true
+        do {
+            let writings = try await writingService.fetchWritings(deviceID: user.deviceID)
+                .filter { $0.authorID != user.deviceID }
+            loadError = nil
+            apply(writings.shuffled(), animated: false)
+        } catch is CancellationError {
+            // The view disappeared while its task was running.
+        } catch {
+            loadError = error.localizedDescription
+            boardItems = []
+        }
+        isRefreshing = false
+    }
+
+    private func openWriting(_ preview: PublishedWritingPreview) {
+        guard !isLoadingDetail else { return }
+        isLoadingDetail = true
+        Task {
+            do {
+                let writing = try await writingService.fetchWriting(id: preview.id, deviceID: user.deviceID)
+                loadError = nil
+                readingItem = .remote(writing)
+            } catch {
+                loadError = error.localizedDescription
+            }
+            isLoadingDetail = false
+        }
+    }
+
+    // MARK: - Refresh flow
+
     private func refreshBoard() {
         guard !isRefreshing, readingItem == nil else { return }
         isRefreshing = true
-
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-
-        guard !boardItems.isEmpty else {
-            swapInNewNotes()
-            return
-        }
 
         let fallOrder = boardItems.indices.shuffled()
         let fallDuration = 0.45
@@ -149,26 +168,44 @@ struct ReadView: View {
 
         let totalFallTime = fallDuration + staggerStep * Double(min(fallOrder.count, maxStaggerNotes)) + 0.05
         DispatchQueue.main.asyncAfter(deadline: .now() + totalFallTime) {
-            swapInNewNotes()
+            Task { await reloadBoard() }
         }
     }
 
-    private func swapInNewNotes() {
-        let newBatch = SampleNoteBank.randomBatch()
-        let layouts = layoutsForEntries(count: newBatch.count)
-        boardItems = zip(newBatch, layouts).map { note, layout in
-            BoardItem(note: note, layout: layout, yOffset: -500, opacity: 0, scale: 0.85)
+    private func reloadBoard() async {
+        do {
+            let writings = try await writingService.fetchWritings(deviceID: user.deviceID)
+                .filter { $0.authorID != user.deviceID }
+            loadError = nil
+            apply(writings.shuffled(), animated: true)
+        } catch is CancellationError {
+            isRefreshing = false
+        } catch {
+            loadError = error.localizedDescription
+            boardItems = []
+            isRefreshing = false
+        }
+    }
+
+    private func apply(_ writings: [PublishedWritingPreview], animated: Bool) {
+        let layouts = layoutsForEntries(count: writings.count)
+        boardItems = zip(writings, layouts).map { writing, layout in
+            BoardItem(
+                writing: writing,
+                layout: layout,
+                yOffset: animated ? -500 : 0,
+                opacity: animated ? 0 : 1,
+                scale: animated ? 0.85 : 1
+            )
         }
 
-        withAnimation(.easeOut(duration: 0.3)) {
-            offset = .zero
-            lastOffset = .zero
-        }
+        offset = .zero
+        lastOffset = .zero
+        guard animated else { return }
 
         let entranceOrder = boardItems.indices.shuffled()
         let staggerStep = 0.05
         let maxStaggerNotes = 18
-
         for (order, index) in entranceOrder.enumerated() {
             let delay = staggerStep * Double(min(order, maxStaggerNotes))
             withAnimation(.spring(response: 0.5, dampingFraction: 0.72).delay(delay)) {
@@ -184,17 +221,7 @@ struct ReadView: View {
         }
     }
 
-    private func syncBoardItems() {
-        let notes = SampleNoteBank.randomBatch()
-        let layouts = layoutsForEntries(count: notes.count)
-        boardItems = zip(notes, layouts).map { note, layout in
-            BoardItem(note: note, layout: layout)
-        }
-    }
-
-    private func openNote(_ note: SampleNote) {
-        readingItem = .sample(note)
-    }
+    // MARK: - Sections
 
     private var header: some View {
         HStack {
@@ -220,44 +247,61 @@ struct ReadView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "pin.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(Theme.inkMuted)
-            Text("The board is empty")
+            if isRefreshing {
+                ProgressView()
+                    .tint(Theme.ink)
+            } else {
+                Image(systemName: loadError == nil ? "pin.slash" : "wifi.exclamationmark")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Theme.inkMuted)
+            }
+            Text(loadError == nil ? "No writings available" : "Couldn't load writings")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Theme.ink)
-            Text("Shake to bring up some notes!")
+            Text(loadError ?? "Check back after another writer publishes.")
                 .font(.system(size: 14))
                 .foregroundStyle(Theme.inkMuted)
+                .multilineTextAlignment(.center)
+            if loadError != nil {
+                Button("Try again") {
+                    Task { await loadBoard() }
+                }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .hardCard(cornerRadius: 16, shadowOffset: 3)
+            }
         }
+        .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var boardCanvas: some View {
-        let canvasW: CGFloat = max(600, boardItems.map { $0.layout.position.x }.max().map { $0 + 120 } ?? 600)
-        let canvasH: CGFloat = max(800, boardItems.map { $0.layout.position.y }.max().map { $0 + 160 } ?? 800)
+        let canvasWidth: CGFloat = max(600, boardItems.map { $0.layout.position.x }.max().map { $0 + 120 } ?? 600)
+        let canvasHeight: CGFloat = max(800, boardItems.map { $0.layout.position.y }.max().map { $0 + 160 } ?? 800)
 
-        return GeometryReader { geo in
+        return GeometryReader { _ in
             ZStack(alignment: .topLeading) {
-                boardSurface(width: canvasW, height: canvasH)
+                boardSurface(width: canvasWidth, height: canvasHeight)
 
                 ForEach(boardItems) { item in
                     StickyNoteView(
-                        note: item.note,
+                        writing: item.writing,
                         color: noteColors[item.layout.colorIndex],
                         rotation: item.layout.rotation,
-                        isBookmarked: user.isSampleNoteBookmarked(item.note.id),
-                        isRead: user.isSampleNoteRead(item.note.id),
+                        isBookmarked: user.isWritingBookmarked(item.writing.id),
+                        isRead: user.isWritingRead(item.writing.id),
                         isDragging: $isDragging
                     ) {
-                        openNote(item.note)
+                        openWriting(item.writing)
                     }
                     .scaleEffect(item.scale)
                     .opacity(item.opacity)
                     .position(x: item.layout.position.x, y: item.layout.position.y + item.yOffset)
                 }
             }
-            .frame(width: canvasW, height: canvasH)
+            .frame(width: canvasWidth, height: canvasHeight)
             .scaleEffect(scale, anchor: .topLeading)
             .offset(offset)
             .simultaneousGesture(dragGesture)
@@ -265,23 +309,18 @@ struct ReadView: View {
             .clipped()
         }
         .padding(.top, 60)
-        .allowsHitTesting(!isRefreshing)
+        .allowsHitTesting(!isRefreshing && !isLoadingDetail)
     }
 
     private func boardSurface(width: CGFloat, height: CGFloat) -> some View {
-        Canvas { ctx, size in
+        Canvas { context, size in
             let dotSpacing: CGFloat = 30
             let dotRadius: CGFloat = 1.5
             let dotColor = Theme.ink.opacity(0.12)
-            let cols = Int(size.width / dotSpacing)
-            let rows = Int(size.height / dotSpacing)
-            for row in 0...rows {
-                for col in 0...cols {
-                    let origin = CGPoint(
-                        x: CGFloat(col) * dotSpacing,
-                        y: CGFloat(row) * dotSpacing
-                    )
-                    ctx.fill(
+            for row in 0...Int(size.height / dotSpacing) {
+                for column in 0...Int(size.width / dotSpacing) {
+                    let origin = CGPoint(x: CGFloat(column) * dotSpacing, y: CGFloat(row) * dotSpacing)
+                    context.fill(
                         Path(ellipseIn: CGRect(
                             x: origin.x - dotRadius,
                             y: origin.y - dotRadius,
@@ -334,11 +373,11 @@ struct ReadView: View {
 }
 
 private struct StickyNoteView: View {
-    let note: SampleNote
+    let writing: PublishedWritingPreview
     let color: Color
     let rotation: Double
-    var isBookmarked: Bool = false
-    var isRead: Bool = false
+    var isBookmarked = false
+    var isRead = false
     @Binding var isDragging: Bool
     let onTap: () -> Void
 
@@ -366,7 +405,7 @@ private struct StickyNoteView: View {
 
             Spacer(minLength: 0)
 
-            Text("\u{201C}\(note.prompt)\u{201D}")
+            Text("\u{201C}\(writing.prompt.fullText)\u{201D}")
                 .font(.system(size: 13, weight: .medium, design: .serif))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(4)
@@ -375,7 +414,7 @@ private struct StickyNoteView: View {
 
             Spacer(minLength: 0)
 
-            Text(Self.dateFormatter.string(from: note.createdAt))
+            Text(Self.dateFormatter.string(from: writing.publishedAt))
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.ink.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .trailing)

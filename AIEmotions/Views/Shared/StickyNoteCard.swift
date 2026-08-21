@@ -4,8 +4,8 @@
 //
 //  Shared sticky-note look for grids of pieces — Profile's Published and
 //  Bookmark tabs. A generic card (title, date, body preview, emotion
-//  pills) so both real Posts and placeholder SampleNotes render the same
-//  way. Distinct from ReadView's own StickyNoteView, which drives its
+//  pills) used for local Posts and backend writings. Distinct from
+//  ReadView's own StickyNoteView, which drives its
 //  freeform pannable corkboard rather than a fixed grid.
 //
 

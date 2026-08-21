@@ -29,6 +29,7 @@ private enum ProfileTab {
 
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.writingService) private var writingService
     @Bindable var user: User
 
     @State private var photoItem: PhotosPickerItem?
@@ -37,6 +38,10 @@ struct ProfileView: View {
     @State private var selectedTab: ProfileTab = .published
     @State private var selectedDraft: Post?
     @State private var readingItem: ReadableItem?
+    @State private var remoteWritings: [PublishedWritingPreview] = []
+    @State private var isLoadingBookmarks = false
+    @State private var isLoadingBookmarkDetail = false
+    @State private var bookmarkError: String?
 
     /// nil means "All". Otherwise the first-of-month date for the
     /// selected month, used both as the picker's identity and to group
@@ -121,6 +126,17 @@ struct ProfileView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .task { await loadRemoteWritings() }
+        .overlay {
+            if isLoadingBookmarkDetail {
+                Theme.overlay.ignoresSafeArea()
+                ProgressView("Opening writing…")
+                    .tint(Theme.ink)
+                    .foregroundStyle(Theme.ink)
+                    .padding(20)
+                    .hardCard(cornerRadius: 16)
+            }
+        }
         .fullScreenCover(item: $selectedDraft) { draft in
             WritingView(user: user, draft: draft)
         }
@@ -181,7 +197,7 @@ struct ProfileView: View {
             HStack(spacing: 8) {
                 toggleButton("Publish (\(user.loadPublished().count))", tab: .published)
                 toggleButton("Drafts (\(user.loadDrafts().count))", tab: .drafts)
-                toggleButton("Bookmark (\(bookmarkedNotes.count))", tab: .bookmarks)
+                toggleButton("Bookmark (\(user.bookmarkedWritingIDs.count))", tab: .bookmarks)
             }
             .padding(.horizontal, 1) // keeps the hardCard-less pill strokes from clipping at the scroll edges
         }
@@ -299,37 +315,82 @@ struct ProfileView: View {
 
     // MARK: - Bookmark grid
 
-    private var bookmarkedNotes: [SampleNote] {
-        SampleNoteBank.all.filter { user.isSampleNoteBookmarked($0.id) }
+    private var bookmarkedWritings: [PublishedWritingPreview] {
+        remoteWritings.filter { user.isWritingBookmarked($0.id) }
     }
 
+    @ViewBuilder
     private var bookmarkGrid: some View {
-        Group {
-            if bookmarkedNotes.isEmpty {
-                Text("No bookmarks yet — tap the bookmark icon on any note in Read to save it here.")
+        if isLoadingBookmarks {
+            ProgressView("Loading bookmarks…")
+                .tint(Theme.ink)
+                .foregroundStyle(Theme.ink)
+                .padding(.top, 40)
+        } else if let bookmarkError {
+            VStack(spacing: 12) {
+                Text(bookmarkError)
                     .font(.system(size: 13))
-                    .foregroundStyle(Theme.inkMuted)
-                    .padding(.top, 40)
-                    .frame(maxWidth: .infinity)
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 18) {
-                    ForEach(Array(bookmarkedNotes.enumerated()), id: \.element.id) { index, note in
-                        Button {
-                            readingItem = .sample(note)
-                        } label: {
-                            StickyNoteCard(
-                                title: note.prompt,
-                                date: note.createdAt,
-                                bodyPreview: note.body,
-                                emotions: note.emotions,
-                                color: stickyNoteColors[index % stickyNoteColors.count],
-                                rotation: stickyNoteRotation(for: index)
-                            )
-                        }
-                        .buttonStyle(.plain)
+                    .foregroundStyle(Theme.error)
+                    .multilineTextAlignment(.center)
+                Button("Try again") {
+                    Task { await loadRemoteWritings() }
+                }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Theme.ink)
+            }
+            .padding(.top, 40)
+        } else if bookmarkedWritings.isEmpty {
+            Text("No bookmarks yet — tap the bookmark icon on any writing in Read to save it here.")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.inkMuted)
+                .padding(.top, 40)
+                .frame(maxWidth: .infinity)
+        } else {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 18) {
+                ForEach(Array(bookmarkedWritings.enumerated()), id: \.element.id) { index, writing in
+                    Button {
+                        openBookmarkedWriting(writing)
+                    } label: {
+                        StickyNoteCard(
+                            title: writing.prompt.fullText,
+                            date: writing.publishedAt,
+                            bodyPreview: writing.previewText,
+                            emotions: writing.prompt.emotions,
+                            color: stickyNoteColors[index % stickyNoteColors.count],
+                            rotation: stickyNoteRotation(for: index)
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    private func loadRemoteWritings() async {
+        isLoadingBookmarks = true
+        do {
+            remoteWritings = try await writingService.fetchWritings(deviceID: user.deviceID)
+            bookmarkError = nil
+        } catch is CancellationError {
+            // The view disappeared while its task was running.
+        } catch {
+            bookmarkError = error.localizedDescription
+        }
+        isLoadingBookmarks = false
+    }
+
+    private func openBookmarkedWriting(_ preview: PublishedWritingPreview) {
+        guard !isLoadingBookmarkDetail else { return }
+        isLoadingBookmarkDetail = true
+        Task {
+            do {
+                let writing = try await writingService.fetchWriting(id: preview.id, deviceID: user.deviceID)
+                readingItem = .remote(writing)
+                bookmarkError = nil
+            } catch {
+                bookmarkError = error.localizedDescription
+            }
+            isLoadingBookmarkDetail = false
         }
     }
 }
